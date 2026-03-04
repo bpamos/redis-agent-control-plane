@@ -618,9 +618,9 @@ See `notes/PHASE_2_5_SCALE_TEST.md` for detailed results.
 ### Redis Cloud Configuration
 - **Instance**: 1GB Redis Cloud database
 - **Version**: Redis 8.4 (native vector search support)
-- **Region**: us-east-1-4 (AWS)
+- **Region**: us-east-1 (AWS)
 - **Connection**: Stored in `.env` file (not committed to git)
-- **Endpoint**: redis-17562.crce219.us-east-1-4.ec2.cloud.redislabs.com:17562
+- **Endpoint**: [REDACTED - see .env file]
 
 ### Tasks
 

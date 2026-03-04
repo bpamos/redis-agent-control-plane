@@ -18,6 +18,32 @@ See `AI_COMMIT_POLICY.md` for full details.
 3. **WAIT** for explicit approval
 4. **ONLY THEN** proceed
 
+## 🔒 CRITICAL: Security and Sensitive Information
+
+**NEVER include sensitive information in code, documentation, or any tracked files.**
+
+See `SECURITY.md` for full security guidelines.
+
+**Protected Information:**
+- ❌ Passwords, API keys, tokens, secrets
+- ❌ Database credentials (usernames, passwords, connection strings)
+- ❌ Redis Cloud URIs with credentials (host, port, password)
+- ❌ Private endpoints or internal URLs
+- ❌ Any real credentials or production configuration
+
+**Safe Practices:**
+- ✅ Use environment variables (`.env` file, gitignored)
+- ✅ Use placeholders in examples (`YOUR_PASSWORD`, `YOUR_HOST`)
+- ✅ Use localhost for development examples
+- ✅ Redact real endpoints in documentation (`[REDACTED]`)
+- ✅ Provide `.env.example` templates with safe placeholders
+
+**Before creating or modifying files:**
+1. **CHECK**: Does this file contain or reference credentials?
+2. **VERIFY**: Are all credentials loaded from environment variables?
+3. **CONFIRM**: Are examples using placeholders or localhost?
+4. **ENSURE**: Real credentials are only in `.env` (gitignored)
+
 ## Operating Principles
 
 **Low blast radius:**
@@ -66,6 +92,10 @@ Before marking any task complete, verify:
 - [ ] CONTEXT.md updated if architecture changed
 - [ ] No TODOs or placeholder code left behind (unless explicitly agreed)
 - [ ] Changes align with constraints in CONTEXT.md
+- [ ] **SECURITY**: No credentials or sensitive data in tracked files
+- [ ] **SECURITY**: All credentials loaded from environment variables
+- [ ] **SECURITY**: Examples use placeholders or localhost only
+- [ ] **SECURITY**: `.env` file not modified or committed
 
 ## Change Boundaries
 
@@ -76,6 +106,14 @@ Before marking any task complete, verify:
 - CI/CD pipelines or GitHub Actions
 - Database schemas or migrations (without explicit approval)
 - Authentication or security-related code
+- `.env` file (contains credentials - never commit)
+- `.gitignore` (unless adding new sensitive files to ignore)
+
+**DO NOT include in any files:**
+- Real passwords, API keys, or credentials
+- Production database connection strings
+- Redis Cloud URIs with credentials
+- Private endpoints or internal URLs
 
 **When in doubt:** Ask before modifying.
 

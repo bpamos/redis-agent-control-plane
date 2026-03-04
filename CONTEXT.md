@@ -49,9 +49,14 @@
 - Keep the control plane lightweight and focused
 
 **Security:**
-- TODO: authentication/authorization requirements
-- TODO: secrets management approach
-- TODO: network security model
+- **Credentials Management**: All sensitive data in `.env` file (gitignored)
+- **Environment Variables**: Use `os.getenv()` for all credentials
+- **No Hardcoded Secrets**: Never commit passwords, API keys, or connection strings
+- **Documentation Safety**: Use placeholders or localhost in examples
+- **Redis Cloud**: Connection details in `.env`, redacted in documentation
+- See `SECURITY.md` for full security guidelines
+- TODO: authentication/authorization requirements for agent API
+- TODO: network security model for production deployment
 
 ## Conventions
 

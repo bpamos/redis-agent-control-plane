@@ -18,8 +18,8 @@ Phase 2 implementation is complete and tested with small test documents (7 chunk
 - **Provider**: Redis Cloud
 - **Size**: 1GB database
 - **Version**: Redis 8.4 (native vector search support)
-- **Region**: us-east-1-4 (AWS)
-- **Endpoint**: redis-17562.crce219.us-east-1-4.ec2.cloud.redislabs.com:17562
+- **Region**: us-east-1 (AWS)
+- **Endpoint**: [REDACTED - see .env file]
 
 **Security:**
 - Connection string stored in `.env` file (not committed to git)
