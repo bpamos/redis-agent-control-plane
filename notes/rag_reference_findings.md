@@ -405,9 +405,20 @@ docs/
 
 ### Chunking Rules
 
-**1. Primary Chunking: H2/H3 Boundaries**
-- Split document by H2 (`##`) and H3 (`###`) headings
-- Each chunk = one H2 or H3 section
+**DECISION (2026-03-04): Tailored strategy based on actual docs analysis**
+
+Analysis of 20 sample docs from `operate/` revealed:
+- Avg H2 section size: 1,067 chars (perfect for RAG)
+- Range: 66 - 7,457 chars (need subchunking for outliers)
+- Tables are very common (165 in sample)
+- Shortcodes are everywhere (327 in sample)
+- H3 subsections exist but aren't universal
+
+**1. Primary Chunking: H2/H3 Boundaries (Adaptive)**
+- Split document by H2 (`##`) headings first
+- **If H2 has H3 subsections** → split by H3 instead (finer granularity)
+- **If H2 has no H3 subsections** → keep entire H2 as one chunk
+- Each chunk = one H2 section OR one H3 subsection
 - Include heading text in chunk content
 - Preserve hierarchy: H3 chunks reference parent H2
 
@@ -416,19 +427,36 @@ docs/
 - If code block is within a section, keep it with that section
 - If code block is very large (>1500 chars), keep it as a single chunk
 
-**3. Preserve Procedural Lists**
+**3. Preserve Tables**
+- **NEVER** split tables across chunks (very common in Redis docs)
+- Keep entire table with its parent section
+- Tables use markdown pipe syntax: `| col1 | col2 |`
+
+**4. Preserve Procedural Lists**
 - Keep numbered lists and checklists intact
 - Do NOT split step-by-step instructions across chunks
 - If list is very long (>2000 chars), keep it as a single chunk
 
-**4. Subchunking for Long Sections**
-- If section > 2000 chars (after preserving code blocks and lists):
-  - Split into subchunks at paragraph boundaries
+**5. Handle Hugo Shortcodes**
+- Preserve shortcodes in chunk content: `{{< relref "..." >}}`, `{{< note >}}`, etc.
+- Extract links from shortcodes for metadata (doc_url references)
+- Common shortcodes: relref, image, note, warning
+
+**6. Subchunking for Long Sections**
+- If section > 2000 chars (after preserving code blocks, tables, and lists):
+  - Split into subchunks at paragraph boundaries (double newline)
   - Assign subchunk_index (0, 1, 2, ...)
   - Include section_heading in all subchunks
   - Maintain ordering with chunk_index and subchunk_index
+  - Target subchunk size: 1000-1500 chars
 
-**5. Metadata Assignment**
+**7. Frontmatter Handling**
+- Extract YAML frontmatter (between `---` delimiters)
+- Parse fields: title, description, categories, linkTitle, weight
+- Use for metadata, do NOT include in chunk content
+- Frontmatter provides: title, description, categories[]
+
+**8. Metadata Assignment**
 - **category**: Extract from path (operate/, integrate/, develop/)
 - **product_area**: Extract from path:
   - `operate/rs/` → `redis_software`

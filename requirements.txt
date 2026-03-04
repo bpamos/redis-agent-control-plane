@@ -5,10 +5,16 @@ redis>=5.2.0
 pydantic>=2.10.0
 pydantic-settings>=2.6.0
 
+# RAG dependencies
+redisvl>=0.3.0
+sentence-transformers>=2.2.0
+pyyaml>=6.0
+
 # Development dependencies
 pytest>=8.3.0
 pytest-asyncio>=0.24.0
 black>=24.10.0
 ruff>=0.8.0
 mypy>=1.13.0
+types-PyYAML>=6.0
 
