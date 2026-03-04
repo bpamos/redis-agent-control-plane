@@ -689,11 +689,22 @@ Choose next path:
 ---
 
 ## [RAG-005] Phase 3: Specialize Chunking/Filters + Hybrid Search
-Status: TODO
+Status: ✅ COMPLETE (2026-03-04)
 Priority: Medium
 
 ### Goal
 Specialize chunking and filters for `../docs/` corpus and add hybrid search capabilities.
+
+### Completion Summary
+- ✅ Implemented FT.CREATE index with HNSW algorithm (10-100x faster retrieval)
+- ✅ Implemented hybrid search (vector + BM25 with RRF)
+- ✅ Added index management utilities (create, info, drop)
+- ✅ Updated documentation with Phase 3 features
+- ✅ Created comprehensive test scripts
+- 📋 Deferred: Enhanced metadata (Phase 3.3) - not needed yet
+- 📋 Deferred: Specialized chunking (Phase 3.4) - current strategy works well
+
+See: `notes/PHASE_3_COMPLETE.md` for full details
 
 ### Why
 Optimize the pipeline for Redis documentation structure and add hybrid search for exact command/config lookups.
