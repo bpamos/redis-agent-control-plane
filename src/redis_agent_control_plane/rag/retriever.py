@@ -123,12 +123,13 @@ class RedisRetriever:
         embedding_bytes = query_embedding.astype(np.float32).tobytes()
 
         # Build FT.SEARCH command with KNN vector search
-        # FT.SEARCH {index} {query} RETURN {fields} SORTBY {field} LIMIT 0 {top_k} DIALECT 2
+        # FT.SEARCH {index} {query} RETURN {fields} SORTBY {field} LIMIT 0 {top_k}
         # For vector search: (query)=>[KNN {top_k} @embedding $vec AS vector_distance]
+        knn_query = f"({filter_query})=>[KNN {top_k * 2} @embedding $vec AS vector_distance]"
         cmd = [
             "FT.SEARCH",
             self.index_name,
-            f"({filter_query})=>[KNN {top_k * 2} @embedding $vec AS vector_distance]",  # Get 2x for filtering
+            knn_query,  # Get 2x for filtering
             "PARAMS",
             "2",
             "vec",
@@ -160,12 +161,12 @@ class RedisRetriever:
         response = self.client.execute_command(*cmd)  # type: ignore
 
         # Parse response
-        # Response format: [num_results, key1, [field1, value1, field2, value2, ...], key2, [...], ...]
-        results = []
+        # Response format: [num_results, key1, [field1, value1, ...], key2, [...]]
+        results: list[dict[str, Any]] = []
         if not response or response[0] == 0:  # type: ignore
             return results
 
-        num_results = response[0]  # type: ignore
+        # Skip num_results (response[0]), iterate over key-value pairs
         for i in range(1, len(response), 2):  # type: ignore
             # key = response[i]  # Not needed
             fields = response[i + 1]  # type: ignore
@@ -173,7 +174,12 @@ class RedisRetriever:
             # Parse fields into dict
             result: dict[str, Any] = {}
             for j in range(0, len(fields), 2):  # type: ignore
-                field_name = fields[j].decode("utf-8") if isinstance(fields[j], bytes) else str(fields[j])  # type: ignore
+                field_name_raw = fields[j]  # type: ignore
+                field_name = (
+                    field_name_raw.decode("utf-8")
+                    if isinstance(field_name_raw, bytes)
+                    else str(field_name_raw)
+                )
                 field_value = fields[j + 1]  # type: ignore
                 if isinstance(field_value, bytes):
                     field_value = field_value.decode("utf-8")
@@ -471,7 +477,7 @@ class RedisRetriever:
         Returns:
             List of parsed results
         """
-        results = []
+        results: list[dict[str, Any]] = []
         if not response or response[0] == 0:  # type: ignore
             return results
 
@@ -481,7 +487,12 @@ class RedisRetriever:
             # Parse fields into dict
             result: dict[str, Any] = {}
             for j in range(0, len(fields), 2):  # type: ignore
-                field_name = fields[j].decode("utf-8") if isinstance(fields[j], bytes) else str(fields[j])  # type: ignore
+                field_name_raw = fields[j]  # type: ignore
+                field_name = (
+                    field_name_raw.decode("utf-8")
+                    if isinstance(field_name_raw, bytes)
+                    else str(field_name_raw)
+                )
                 field_value = fields[j + 1]  # type: ignore
                 if isinstance(field_value, bytes):
                     field_value = field_value.decode("utf-8")
@@ -523,7 +534,9 @@ class RedisRetriever:
         for chunks in doc_chunks.values():
             # Sort by score (lower distance is better for vector, higher for hybrid)
             if "hybrid_score" in chunks[0]:
-                sorted_chunks = sorted(chunks, key=lambda x: x.get("hybrid_score", 0.0), reverse=True)
+                sorted_chunks = sorted(
+                    chunks, key=lambda x: x.get("hybrid_score", 0.0), reverse=True
+                )
             else:
                 sorted_chunks = sorted(chunks, key=lambda x: x.get("vector_distance", 1.0))
             deduplicated.extend(sorted_chunks[:max_per_doc])
