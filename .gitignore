@@ -206,10 +206,5 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# AI Assistant Operating Manuals (local workflow files)
-AUGGIE.md
-CONTEXT.md
-TASKS.md
-
 # Generated data artifacts
 data/
