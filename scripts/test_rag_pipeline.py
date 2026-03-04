@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Test script to verify RAG pipeline works end-to-end."""
 
+import os
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -127,8 +133,9 @@ redis-cli INFO memory
 
     # Step 4: Index chunks
     print("\n[4/6] Indexing chunks in Redis...")
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     indexer = RedisIndexer(
-        redis_url="redis://localhost:6379",
+        redis_url=redis_url,
         index_name="test_rag_pipeline",
         vector_dims=embedder.dimensions,
     )
@@ -142,7 +149,7 @@ redis-cli INFO memory
     # Step 5: Test retrieval
     print("\n[5/6] Testing retrieval...")
     retriever = RedisRetriever(
-        redis_url="redis://localhost:6379",
+        redis_url=redis_url,
         index_name="test_rag_pipeline",
         embedder=embedder,
     )

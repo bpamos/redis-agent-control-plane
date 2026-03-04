@@ -2,9 +2,15 @@
 """End-to-end RAG pipeline: ingest → chunk → embed → index."""
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -27,8 +33,8 @@ def main() -> int:
     parser.add_argument(
         "--redis-url",
         type=str,
-        default="redis://localhost:6379",
-        help="Redis connection URL (default: redis://localhost:6379)",
+        default=os.getenv("REDIS_URL", "redis://localhost:6379"),
+        help="Redis connection URL (default: from REDIS_URL env var or redis://localhost:6379)",
     )
     parser.add_argument(
         "--index-name",
