@@ -20,11 +20,55 @@ The system produces validated runbooks and context packs for reliable, repeatabl
 
 **This repo IS NOT:**
 - **A deployment executor** - Does not run Terraform, kubectl, or infrastructure commands
-- **A hosted service** - Currently a Python library/CLI (API layer deferred)
+- **A hosted API service** - This is a Python library and CLI tool (HTTP API deferred to v2 if needed)
 
 **Execution happens elsewhere:**
 - Terraform deployments: `redis-terraform-projects` (future external consumer)
 - This repo produces: validated runbooks + context packs for deployments
+
+## Usage Modes
+
+This project can be used in two ways:
+
+### 1. CLI Tool (Primary Interface)
+
+The CLI provides 5 commands for interactive use:
+
+```bash
+redis-agent-control-plane plan --spec deployment.yaml
+redis-agent-control-plane explain context_pack.json
+redis-agent-control-plane search "How do I enable TLS?"
+redis-agent-control-plane validate --all
+redis-agent-control-plane list runbooks
+```
+
+See [Quick Start](#quick-start) for detailed CLI usage.
+
+### 2. Python Library (Programmatic Access)
+
+Import and use the modules directly in your Python code:
+
+```python
+from redis_agent_control_plane.orchestration.router import RunbookRouter
+from redis_agent_control_plane.orchestration.deployment_spec import DeploymentSpec
+from redis_agent_control_plane.orchestration.context_builder import ContextBuilder
+
+# Route to runbook
+spec = DeploymentSpec.from_dict({
+    "product": "redis_enterprise",
+    "platform": "kubernetes",
+    "topology": "clustered",
+    # ... other fields
+})
+router = RunbookRouter()
+runbook_id = router.route(spec)
+
+# Build context pack
+builder = ContextBuilder()
+# ... use builder to create context packs
+```
+
+**Note:** HTTP API is not currently provided. If you need an API interface, please open an issue to discuss requirements. API support may be added in v2 based on demand.
 
 ## Current Status
 
@@ -32,14 +76,23 @@ The system produces validated runbooks and context packs for reliable, repeatabl
 
 **Deterministic Routing System:**
 - 100% deterministic routing (same DeploymentSpec → same Runbook, always)
+- Data-driven registry-based routing (adding runbooks = config change, not code change)
+- Priority-based matching with collision detection
 - Validated over 100 iterations with zero variance
-- 62 passing tests, 11 skipped
+- 71 passing tests, 11 skipped
 
 **10 Validated Runbooks:**
 - Infrastructure: 1 (Redis Cloud VPC peering)
 - Cluster Deployment: 3 (VM single-node, VM 3-node, Kubernetes 3-node)
 - Active-Active Preparation: 2 (VM cluster linking, Kubernetes admission controller)
 - Database Deployment: 4 (VM standard, VM CRDB, K8s REDB, K8s REAADB)
+
+**Reusable Step Library:**
+- 21 reusable deployment steps in `steps/` directory
+- DRY principle: define steps once, reference everywhere
+- Parameterized steps for flexible configuration
+- Supports both inline and referenced steps in runbooks
+- `scripts/validate_steps.py` - Automated step validation
 
 **Validation & Testing Tools:**
 - `scripts/validate_runbooks.py` - Automated runbook validation against documentation
@@ -85,16 +138,45 @@ make install-venv
 source venv/bin/activate
 ```
 
-### 2. Run the Application
+### 2. Use the CLI
+
+The CLI provides 5 main commands for working with deployment plans:
 
 ```bash
-make run
+# Show help
+redis-agent-control-plane --help
+
+# Generate a context pack from a deployment spec
+redis-agent-control-plane plan --spec examples/kubernetes_clustered.yaml
+
+# Interactive mode
+redis-agent-control-plane plan --interactive
+
+# Explain a context pack in markdown
+redis-agent-control-plane explain context_pack.json
+
+# Search documentation
+redis-agent-control-plane search "How do I enable TLS?"
+
+# List available runbooks and steps
+redis-agent-control-plane list runbooks
+redis-agent-control-plane list steps
+
+# Validate all components
+redis-agent-control-plane validate --all
 ```
 
-Or directly with Poetry:
+**Example Workflow:**
 
 ```bash
-poetry run python -m redis_agent_control_plane.main
+# 1. Generate a context pack
+redis-agent-control-plane plan --spec examples/kubernetes_clustered.yaml -o my_plan.json
+
+# 2. Review the plan
+redis-agent-control-plane explain my_plan.json
+
+# 3. Search for additional context
+redis-agent-control-plane search "Kubernetes deployment best practices" --product redis_enterprise
 ```
 
 ### 3. Run Tests
@@ -158,6 +240,43 @@ runbook_id = router.route(spec)  # Always returns same runbook for same spec
 runbook = router.load_runbook(runbook_id)
 ```
 
+### Registry-Based Routing
+
+The routing system uses a data-driven registry (`runbooks/_registry.yaml`) that maps deployment specifications to runbooks. This makes adding new runbooks a **config change, not a code change**.
+
+**Key Benefits:**
+- ✅ Adding runbooks = editing YAML, not writing code
+- ✅ Priority-based matching for specialized variants
+- ✅ Collision detection prevents ambiguous routing
+- ✅ Backward compatible with legacy routing
+
+**Registry Structure:**
+```yaml
+runbooks:
+  - id: runbook.redis_enterprise.kubernetes.clustered
+    name: "Redis Enterprise on Kubernetes - 3-Node Cluster"
+    path: "runbooks/redis_enterprise/kubernetes/clustered.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: kubernetes
+      topology: clustered
+    priority: 100
+    enabled: true
+```
+
+**Routing Algorithm:**
+1. Load all enabled runbooks from registry
+2. Match selectors against DeploymentSpec (all must match)
+3. Sort by priority (descending)
+4. Return highest priority match
+5. Fail loudly if no match or ambiguous match (same priority)
+
+**Validate Registry:**
+```bash
+# Validate registry schema, file existence, and detect collisions
+python scripts/validate_registry.py
+```
+
 ### Interactive Routing Test
 ```bash
 # Test routing interactively
@@ -179,6 +298,68 @@ python scripts/validate_runbooks.py
 python scripts/validate_runbooks.py --runbook runbooks/redis_enterprise/vm/single_node.yaml
 ```
 
+### Reusable Step Library
+
+The step library eliminates duplication across runbooks by defining common deployment steps once and referencing them everywhere.
+
+**Step Structure:**
+```yaml
+# steps/redis_enterprise/kubernetes/install_operator.yaml
+step:
+  id: install_operator
+  name: "Install Redis Enterprise Operator"
+  description: "Deploy the Redis Enterprise Operator using the official bundle YAML"
+  doc_refs:
+    - path: "operate/kubernetes/deployment/quick-start.md"
+      section: "Install the operator"
+  tool: kubectl
+  command: "kubectl apply -f https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/master/bundle.yaml"
+  validation:
+    command: "kubectl get deployment redis-enterprise-operator -n $NAMESPACE"
+    expect: "redis-enterprise-operator"
+    retry: 10
+    retry_delay: 5
+  parameters:
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace for the operator"
+```
+
+**Using Steps in Runbooks:**
+```yaml
+# runbooks/redis_enterprise/kubernetes/clustered.yaml
+runbook:
+  id: runbook.redis_enterprise.kubernetes.clustered
+  steps:
+    - step_ref: redis_enterprise/kubernetes/install_operator
+      parameters:
+        namespace: $NAMESPACE
+
+    - step_ref: redis_enterprise/kubernetes/wait_operator_ready
+      parameters:
+        namespace: $NAMESPACE
+```
+
+**Benefits:**
+- ✅ Define steps once, reference everywhere
+- ✅ Update once, applies everywhere
+- ✅ Parameterized for flexibility
+- ✅ Supports both inline and referenced steps
+- ✅ 21 reusable steps across VM, Kubernetes, and database operations
+
+**Validate Steps:**
+```bash
+# Validate all step files
+python scripts/validate_steps.py
+```
+
+**Step Categories:**
+- `steps/redis_enterprise/kubernetes/` - Kubernetes deployment steps (7 steps)
+- `steps/redis_enterprise/vm/` - VM deployment steps (6 steps)
+- `steps/redis_enterprise/database/` - Database creation steps (7 steps)
+- `steps/redis_cloud/aws/` - AWS-specific steps (1 step)
+
 ## Project Structure
 
 ```
@@ -199,8 +380,17 @@ redis-agent-control-plane/
 │           ├── indexer.py          # FT.CREATE index with HNSW
 │           └── retriever.py        # Hybrid search (vector + BM25)
 ├── runbooks/                       # ✅ 10 Validated Runbooks
+│   ├── _registry.yaml              # 🆕 Data-driven routing registry
 │   ├── redis_cloud/
 │   │   └── aws/
+├── steps/                          # 🆕 Reusable Step Library (21 steps)
+│   ├── README.md                   # Step library documentation
+│   ├── redis_enterprise/
+│   │   ├── kubernetes/             # Kubernetes deployment steps
+│   │   ├── vm/                     # VM deployment steps
+│   │   └── database/               # Database creation steps
+│   └── redis_cloud/
+│       └── aws/                    # AWS-specific steps
 │   │       └── vpc_peering.yaml
 │   └── redis_enterprise/
 │       ├── vm/
@@ -219,12 +409,13 @@ redis-agent-control-plane/
 │   ├── __init__.py
 │   ├── test_smoke.py
 │   ├── test_deployment_spec.py     # DeploymentSpec tests
-│   ├── test_router.py              # Router determinism tests (11 tests)
+│   ├── test_router.py              # Router tests (20 tests, including registry routing)
 │   ├── test_runbook.py             # Runbook loader tests
 │   ├── test_context_builder.py     # Context pack builder tests (9 tests)
 │   └── test_rag_*.py               # RAG pipeline tests
 ├── scripts/
 │   ├── validate_runbooks.py        # ✅ Runbook validation CLI
+│   ├── validate_registry.py        # 🆕 Registry validation CLI
 │   ├── test_routing.py             # ✅ Interactive routing test CLI
 │   ├── build_rag_index.py          # Build RAG index from docs
 │   ├── test_rag_pipeline.py        # End-to-end pipeline test
@@ -301,6 +492,7 @@ PYTHONPATH=src pytest tests/test_router.py -v
 - **[CONTEXT.md](CONTEXT.md)** - Architecture overview and technical context
 - **[docs/RAG_PIPELINE.md](docs/RAG_PIPELINE.md)** - RAG pipeline technical documentation
 - **[docs/PHASE_3_QUICK_START.md](docs/PHASE_3_QUICK_START.md)** - RAG pipeline quick start guide
+- **[docs/context_pack_schema.md](docs/context_pack_schema.md)** - ContextPack schema documentation and versioning
 
 ## Roadmap
 

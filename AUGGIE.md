@@ -301,18 +301,20 @@ If Auggie is:
 
 # Next Work: V1 Completion Tasks
 
-**Status:** Ready to start (Phases A-F complete)
+**Status:** In Progress (2/6 complete)
 **Goal:** Transform from "phases complete" to "v1 production-ready"
 
-**Planned tasks (see TASKS.md):**
-- [V1-001] Data-driven routing registry
-- [V1-002] Versioned context pack schema
-- [V1-003] Reusable step library
-- [V1-004] Golden path CLI
-- [V1-005] CI anti-rot guardrails
-- [V1-006] API clarity decision
+**Completed tasks:**
+- ✅ [V1-001] Data-driven routing registry (2026-03-04)
+- ✅ [V1-002] Versioned context pack schema (2026-03-05)
 
-**To start:** Set ACTIVE_TASK in TASKS.md to V1-001
+**Remaining tasks (see TASKS.md):**
+- [ ] [V1-003] Reusable step library
+- [ ] [V1-004] Golden path CLI
+- [ ] [V1-005] CI anti-rot guardrails
+- [ ] [V1-006] API clarity decision
+
+**Next up:** [V1-003] Reusable step library
 
 ---
 

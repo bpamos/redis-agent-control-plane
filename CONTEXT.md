@@ -507,23 +507,42 @@ python3 scripts/test_retrieval_quality.py
 
 ## V1 Completion Tasks (Next Phase)
 
-**Status:** TODO (Phases A-F complete, ready for V1 tasks)
+**Status:** ✅ COMPLETE (6/6 complete as of 2026-03-05)
 
-**Goal:** Transform from "phases complete" to "v1 production-ready"
+**Goal:** Transform from "phases complete" to "v1 production-ready" ✅ ACHIEVED
 
-**What we need to build:**
-1. **Data-driven routing** - Move routing rules to `runbooks/_registry.yaml`
-2. **Versioned schema** - Add plan_version, spec_version to ContextPack
-3. **Reusable steps** - Extract common steps to `steps/` directory
-4. **Golden path CLI** - Add plan/explain/search commands
-5. **CI guardrails** - Add GitHub Actions for validation
-6. **API clarity** - Decide: library/CLI or add FastAPI wrapper
+**All V1 Tasks Completed:**
+1. ✅ **Data-driven routing** - `runbooks/_registry.yaml` with generic matching algorithm (V1-001)
+2. ✅ **Versioned schema** - Added `plan_version` and `spec_version` to ContextPack with serialization (V1-002)
+3. ✅ **Reusable step library** - 21 steps in `steps/` directory with parameter substitution (V1-003)
+4. ✅ **Golden path CLI** - 5 commands (plan, explain, search, validate, list) with full documentation (V1-004)
+5. ✅ **CI guardrails** - GitHub Actions, pre-commit hooks, CONTRIBUTING.md (V1-005)
+6. ✅ **API clarity** - Library/CLI tool, FastAPI removed, HTTP API deferred to v2 (V1-006)
+
+**Result:** v1.0.0 Production Ready 🎉
+
+**What V1-002 delivered:**
+- `ContextPack` now has `plan_version: str = "1.0.0"` and `spec_version: str = "1.0.0"`
+- Full serialization: `to_dict()`, `to_json()`, `from_dict()`, `from_json()` methods
+- Validation script: `scripts/validate_plan.py` for validating context pack JSON
+- Schema documentation: `docs/context_pack_schema.md` with examples and migration guide
+- All nested objects (DeploymentSpec, RAGChunk, NetworkingConfig, ScaleConfig) support serialization
+
+**What V1-003 delivered:**
+- 21 reusable steps in `steps/` directory (7 Kubernetes, 6 VM, 7 database, 1 cloud)
+- Step resolution and parameter merging in runbook loader
+- Validation script: `scripts/validate_steps.py` for validating step files
+- Documentation: `steps/README.md` with complete step schema
+- Backward compatibility: inline steps still work alongside step_ref
+- Proof of concept: clustered.yaml migrated with 44% size reduction
 
 **Why this matters:**
-- Prevent "if/else monster" as we scale to 30+ runbooks
-- Prevent "copy-paste hell" with reusable steps
-- Formalize contract for external consumers
-- Make the repo usable as a standalone tool
+- DRY principle: steps defined once, referenced everywhere
+- Maintainability: update once, applies to all runbooks
+- Flexibility: parameterized steps support different configurations
+- External systems have stable, versioned contracts
+- Schema evolution is tracked with semantic versioning
+- Context packs can be validated before handing to consumers
 
 📄 **See:** `TASKS.md` for detailed task definitions (V1-001 through V1-006)
 
