@@ -1,0 +1,70 @@
+step:
+  id: create_reaadb
+  name: "Create Active-Active database (REAADB)"
+  description: "Create a RedisEnterpriseActiveActiveDatabase (REAADB) custom resource for multi-cluster Active-Active deployment"
+  doc_refs:
+    - path: "operate/kubernetes/re-databases/db-controller.md"
+      section: "Active-Active database"
+  rag_assist:
+    query: "How do I create an Active-Active database on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 5
+  tool: kubectl
+  command: |
+    cat <<EOF | kubectl apply -f -
+    apiVersion: app.redislabs.com/v1alpha1
+    kind: RedisEnterpriseActiveActiveDatabase
+    metadata:
+      name: $DB_NAME
+      namespace: $NAMESPACE
+    spec:
+      participatingClusters:
+        - name: $CLUSTER1_NAME
+        - name: $CLUSTER2_NAME
+      globalConfigurations:
+        memorySize: $MEMORY_SIZE
+        shardCount: $SHARD_COUNT
+        replication: $REPLICATION
+        tlsMode: $TLS_MODE
+    EOF
+  validation:
+    command: "kubectl get reaadb $DB_NAME -n $NAMESPACE"
+    expect: "$DB_NAME"
+    retry: 5
+    retry_delay: 3
+  parameters:
+    - name: db_name
+      type: string
+      default: "active-active-db"
+      description: "Active-Active database name"
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace"
+    - name: cluster1_name
+      type: string
+      default: "rec1"
+      description: "First participating cluster name"
+    - name: cluster2_name
+      type: string
+      default: "rec2"
+      description: "Second participating cluster name"
+    - name: memory_size
+      type: string
+      default: "1GB"
+      description: "Database memory size"
+    - name: shard_count
+      type: int
+      default: 1
+      description: "Number of shards"
+    - name: replication
+      type: bool
+      default: true
+      description: "Enable replication"
+    - name: tls_mode
+      type: string
+      default: "disabled"
+      description: "TLS mode (disabled/enabled)"
+

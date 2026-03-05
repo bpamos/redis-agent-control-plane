@@ -1,0 +1,34 @@
+step:
+  id: get_redb_connection
+  name: "Get database connection secret"
+  description: "Retrieve the database connection information from the Kubernetes secret"
+  doc_refs:
+    - path: "operate/kubernetes/re-databases/db-controller.md"
+      section: "Connect to a database"
+  rag_assist:
+    query: "How do I get connection information for a REDB on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 3
+  tool: kubectl
+  command: |
+    echo "Database endpoint:"
+    kubectl get secret redb-$DB_NAME -n $NAMESPACE -o jsonpath='{.data.service_name}' | base64 --decode
+    echo ""
+    echo "Port:"
+    kubectl get secret redb-$DB_NAME -n $NAMESPACE -o jsonpath='{.data.port}' | base64 --decode
+    echo ""
+  validation:
+    command: "kubectl get secret redb-$DB_NAME -n $NAMESPACE"
+    expect: "redb-$DB_NAME"
+  parameters:
+    - name: db_name
+      type: string
+      default: "redis-db"
+      description: "Database name"
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace"
+

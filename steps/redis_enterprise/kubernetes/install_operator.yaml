@@ -1,0 +1,26 @@
+step:
+  id: install_operator
+  name: "Install Redis Enterprise Operator"
+  description: "Deploy the Redis Enterprise Operator using the official bundle YAML"
+  doc_refs:
+    - path: "operate/kubernetes/deployment/quick-start.md"
+      section: "Install the operator"
+  rag_assist:
+    query: "How do I install the Redis Enterprise Operator on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 5
+  tool: kubectl
+  command: "kubectl apply -f https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/master/bundle.yaml"
+  validation:
+    command: "kubectl get deployment redis-enterprise-operator -n $NAMESPACE"
+    expect: "redis-enterprise-operator"
+    retry: 10
+    retry_delay: 5
+  parameters:
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace for the operator"
+

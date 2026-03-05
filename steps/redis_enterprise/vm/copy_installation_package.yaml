@@ -1,0 +1,28 @@
+step:
+  id: copy_installation_package
+  name: "Copy installation package to target host"
+  description: "Transfer the Redis Enterprise installation package to the target VM"
+  doc_refs:
+    - path: "operate/rs/installing-upgrading/install/prepare-install/download-install-package.md"
+      section: "Download installation package"
+  rag_assist:
+    query: "How do I download Redis Enterprise installation package?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 3
+  tool: scp
+  command: "scp $REDIS_ENTERPRISE_PACKAGE $TARGET_HOST:~/"
+  validation:
+    command: "ssh $TARGET_HOST 'ls -l ~/$(basename $REDIS_ENTERPRISE_PACKAGE)'"
+    expect: "$(basename $REDIS_ENTERPRISE_PACKAGE)"
+  parameters:
+    - name: redis_enterprise_package
+      type: string
+      default: "/path/to/redis-enterprise.tar"
+      description: "Path to Redis Enterprise installation package"
+    - name: target_host
+      type: string
+      default: "localhost"
+      description: "Target host for installation"
+

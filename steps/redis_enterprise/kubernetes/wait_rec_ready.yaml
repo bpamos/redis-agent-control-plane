@@ -1,0 +1,30 @@
+step:
+  id: wait_rec_ready
+  name: "Wait for cluster to be ready"
+  description: "Wait for all nodes to join the cluster and become ready"
+  doc_refs:
+    - path: "operate/kubernetes/deployment/quick-start.md"
+      section: "Verify the cluster is running"
+  rag_assist:
+    query: "How do I verify Redis Enterprise Cluster is ready on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 3
+  tool: kubectl
+  command: "kubectl wait --for=condition=ready --timeout=900s rec/$CLUSTER_NAME -n $NAMESPACE"
+  validation:
+    command: "kubectl get rec $CLUSTER_NAME -n $NAMESPACE -o jsonpath='{.status.state}' | grep -q 'Running'"
+    expect: "Running"
+    retry: 30
+    retry_delay: 10
+  parameters:
+    - name: cluster_name
+      type: string
+      default: "rec"
+      description: "Name of the Redis Enterprise Cluster"
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace"
+

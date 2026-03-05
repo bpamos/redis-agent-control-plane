@@ -1,0 +1,30 @@
+step:
+  id: verify_cluster_ui
+  name: "Verify cluster UI access"
+  description: "Get the LoadBalancer IP/hostname for the Redis Enterprise UI"
+  doc_refs:
+    - path: "operate/kubernetes/deployment/quick-start.md"
+      section: "Access the cluster UI"
+  rag_assist:
+    query: "How do I access the Redis Enterprise UI on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 3
+  tool: kubectl
+  command: "kubectl get svc $CLUSTER_NAME-ui -n $NAMESPACE"
+  validation:
+    command: "kubectl get svc $CLUSTER_NAME-ui -n $NAMESPACE -o jsonpath='{.status.loadBalancer}' | grep -q 'ingress'"
+    expect: "ingress"
+    retry: 10
+    retry_delay: 5
+  parameters:
+    - name: cluster_name
+      type: string
+      default: "rec"
+      description: "Name of the Redis Enterprise Cluster"
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace"
+

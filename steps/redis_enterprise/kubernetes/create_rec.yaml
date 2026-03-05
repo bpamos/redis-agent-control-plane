@@ -1,0 +1,86 @@
+step:
+  id: create_rec
+  name: "Create Redis Enterprise Cluster (REC) manifest"
+  description: "Create a Redis Enterprise Cluster custom resource"
+  doc_refs:
+    - path: "operate/kubernetes/deployment/quick-start.md"
+      section: "Create a Redis Enterprise cluster"
+  rag_assist:
+    query: "How do I create a Redis Enterprise Cluster on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 5
+  tool: kubectl
+  command: |
+    cat <<EOF | kubectl apply -f -
+    apiVersion: app.redislabs.com/v1
+    kind: RedisEnterpriseCluster
+    metadata:
+      name: $CLUSTER_NAME
+      namespace: $NAMESPACE
+    spec:
+      nodes: $NODES
+      persistentSpec:
+        enabled: true
+        storageClassName: $STORAGE_CLASS
+        volumeSize: $VOLUME_SIZE
+      redisEnterpriseNodeResources:
+        limits:
+          cpu: "$CPU_LIMIT"
+          memory: $MEMORY_LIMIT
+        requests:
+          cpu: "$CPU_REQUEST"
+          memory: $MEMORY_REQUEST
+      uiServiceType: LoadBalancer
+      username: $ADMIN_USERNAME
+      redisEnterpriseImageSpec:
+        imagePullPolicy: IfNotPresent
+    EOF
+  validation:
+    command: "kubectl get rec $CLUSTER_NAME -n $NAMESPACE"
+    expect: "$CLUSTER_NAME"
+    retry: 5
+    retry_delay: 3
+  parameters:
+    - name: cluster_name
+      type: string
+      default: "rec"
+      description: "Name of the Redis Enterprise Cluster"
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace"
+    - name: nodes
+      type: int
+      default: 3
+      description: "Number of cluster nodes"
+    - name: storage_class
+      type: string
+      default: "standard"
+      description: "Kubernetes storage class"
+    - name: volume_size
+      type: string
+      default: "50Gi"
+      description: "Persistent volume size"
+    - name: cpu_limit
+      type: string
+      default: "4"
+      description: "CPU limit per node"
+    - name: memory_limit
+      type: string
+      default: "16Gi"
+      description: "Memory limit per node"
+    - name: cpu_request
+      type: string
+      default: "2"
+      description: "CPU request per node"
+    - name: memory_request
+      type: string
+      default: "8Gi"
+      description: "Memory request per node"
+    - name: admin_username
+      type: string
+      default: "admin@redis.com"
+      description: "Admin username"
+

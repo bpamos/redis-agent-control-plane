@@ -1,0 +1,36 @@
+step:
+  id: create_vpc_peering
+  name: "Create VPC peering connection"
+  description: "Create a VPC peering connection between Redis Cloud and AWS VPC"
+  doc_refs:
+    - path: "operate/rc/security/vpc-peering.md"
+      section: "Create VPC peering"
+  rag_assist:
+    query: "How do I create VPC peering for Redis Cloud on AWS?"
+    filters:
+      category: operate
+      product_area: redis_cloud
+    max_results: 5
+  tool: manual
+  command: "echo 'Manual step: Create VPC peering in Redis Cloud console and accept in AWS console'"
+  validation:
+    command: "echo 'Manual validation required'"
+    expect: "Manual validation required"
+  parameters:
+    - name: subscription_id
+      type: string
+      default: ""
+      description: "Redis Cloud subscription ID"
+    - name: aws_account_id
+      type: string
+      default: ""
+      description: "AWS account ID"
+    - name: vpc_id
+      type: string
+      default: ""
+      description: "AWS VPC ID"
+    - name: region
+      type: string
+      default: "us-east-1"
+      description: "AWS region"
+

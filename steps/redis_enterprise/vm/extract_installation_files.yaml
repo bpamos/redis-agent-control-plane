@@ -1,0 +1,22 @@
+step:
+  id: extract_installation_files
+  name: "Extract installation files"
+  description: "Extract the Redis Enterprise installation package on the target host"
+  doc_refs:
+    - path: "operate/rs/installing-upgrading/install/install-on-linux.md"
+      section: "Extract the installation files"
+  tool: ssh
+  command: "ssh $TARGET_HOST 'tar vxf $(basename $REDIS_ENTERPRISE_PACKAGE)'"
+  validation:
+    command: "ssh $TARGET_HOST 'test -f install.sh && echo ok'"
+    expect: "ok"
+  parameters:
+    - name: redis_enterprise_package
+      type: string
+      default: "/path/to/redis-enterprise.tar"
+      description: "Path to Redis Enterprise installation package"
+    - name: target_host
+      type: string
+      default: "localhost"
+      description: "Target host for installation"
+

@@ -1,0 +1,32 @@
+step:
+  id: test_redb_connectivity
+  name: "Test database connectivity"
+  description: "Verify the database is accessible by performing a simple PING command from within the cluster"
+  doc_refs:
+    - path: "operate/kubernetes/re-databases/db-controller.md"
+      section: "Connect to a database"
+  rag_assist:
+    query: "How do I test connectivity to a REDB on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 3
+  tool: kubectl
+  command: |
+    kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE -- \
+      redis-cli -h redb-$DB_NAME -p $(kubectl get secret redb-$DB_NAME -n $NAMESPACE -o jsonpath='{.data.port}' | base64 --decode) PING
+  validation:
+    command: "kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE -- redis-cli -h redb-$DB_NAME PING | grep -q 'PONG'"
+    expect: "PONG"
+    retry: 5
+    retry_delay: 3
+  parameters:
+    - name: db_name
+      type: string
+      default: "redis-db"
+      description: "Database name"
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace"
+

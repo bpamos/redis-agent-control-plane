@@ -28,9 +28,9 @@ def test_runbook_load_from_yaml():
     assert runbook.prerequisites[0].check == "kubectl_installed"
     assert "kubectl" in runbook.prerequisites[0].command
 
-    # Verify steps
+    # Verify steps (now using step_ref)
     assert len(runbook.steps) > 0
-    assert runbook.steps[0].id == "step_1"
+    assert runbook.steps[0].id == "install_operator"
     assert runbook.steps[0].name == "Install Redis Enterprise Operator"
     assert len(runbook.steps[0].doc_refs) > 0
     assert runbook.steps[0].rag_assist is not None
@@ -162,3 +162,184 @@ def test_runbook_step_structure():
         assert step.validation.command is not None
         assert step.validation.expect is not None
         assert step.validation.retry >= 1
+
+
+def test_step_resolution():
+    """Test that step references are resolved correctly."""
+    runbook_path = Path("runbooks/redis_enterprise/kubernetes/clustered.yaml")
+
+    if not runbook_path.exists():
+        pytest.skip(f"Runbook file not found: {runbook_path}")
+
+    runbook = Runbook.from_yaml(runbook_path)
+
+    # Verify that steps were loaded from step files
+    assert len(runbook.steps) >= 4
+
+    # First step should be install_operator
+    assert runbook.steps[0].id == "install_operator"
+    assert runbook.steps[0].name == "Install Redis Enterprise Operator"
+    assert runbook.steps[0].tool == "kubectl"
+
+    # Second step should be wait_operator_ready
+    assert runbook.steps[1].id == "wait_operator_ready"
+    assert runbook.steps[1].name == "Wait for operator to be ready"
+
+
+def test_step_parameter_substitution():
+    """Test that parameters are substituted in step commands."""
+    runbook_path = Path("runbooks/redis_enterprise/kubernetes/clustered.yaml")
+
+    if not runbook_path.exists():
+        pytest.skip(f"Runbook file not found: {runbook_path}")
+
+    runbook = Runbook.from_yaml(runbook_path)
+
+    # Check that $NAMESPACE parameter is in the command
+    # (it should remain as $NAMESPACE since it's a runbook-level variable)
+    assert runbook.steps[0].command is not None
+    assert "kubectl" in runbook.steps[0].command
+
+
+def test_load_step_from_file():
+    """Test loading a step from a YAML file."""
+    steps_dir = Path("steps")
+
+    if not steps_dir.exists():
+        pytest.skip(f"Steps directory not found: {steps_dir}")
+
+    step_ref = "redis_enterprise/kubernetes/install_operator"
+    step_data = Runbook._load_step_from_file(step_ref, steps_dir)
+
+    assert step_data["id"] == "install_operator"
+    assert step_data["name"] == "Install Redis Enterprise Operator"
+    assert step_data["tool"] == "kubectl"
+    assert "parameters" in step_data
+    assert len(step_data["parameters"]) > 0
+
+
+def test_merge_parameters():
+    """Test parameter merging with defaults and overrides."""
+    step_data = {
+        "id": "test_step",
+        "name": "Test Step",
+        "command": "kubectl apply -n $NAMESPACE",
+        "parameters": [
+            {"name": "namespace", "type": "string", "default": "default"},
+            {"name": "replicas", "type": "int", "default": 3},
+        ],
+    }
+
+    # Test with no overrides - should use default value
+    merged = Runbook._merge_parameters(step_data, None)
+    assert "default" in merged["command"]  # Default value substituted
+
+    # Test with overrides - should use override value
+    merged = Runbook._merge_parameters(step_data, {"namespace": "production"})
+    assert "production" in merged["command"]  # Override value substituted
+
+
+def test_step_validation_with_parameters():
+    """Test that validation commands also get parameter substitution."""
+    step_data = {
+        "id": "test_step",
+        "name": "Test Step",
+        "command": "kubectl get pods -n $NAMESPACE",
+        "validation": {
+            "command": "kubectl get deployment test -n $NAMESPACE",
+            "expect": "test",
+            "retry": 5,
+        },
+        "parameters": [{"name": "namespace", "type": "string", "default": "default"}],
+    }
+
+    merged = Runbook._merge_parameters(step_data, {"namespace": "production"})
+    assert merged["validation"] is not None
+    assert "production" in merged["validation"]["command"]  # Parameter substituted
+
+
+def test_inline_steps_still_work():
+    """Test that runbooks with inline steps (not step_ref) still work."""
+    runbook_path = Path("runbooks/redis_enterprise/vm/single_node.yaml")
+
+    if not runbook_path.exists():
+        pytest.skip(f"Runbook file not found: {runbook_path}")
+
+    runbook = Runbook.from_yaml(runbook_path)
+
+    # VM runbooks still use inline steps
+    assert len(runbook.steps) > 0
+    # These should have step_1, step_2, etc. as IDs
+    assert runbook.steps[0].id.startswith("step_")
+
+
+def test_mixed_inline_and_ref_steps():
+    """Test that a runbook can have both inline and referenced steps."""
+    # Create a temporary test runbook with mixed steps
+    import tempfile
+
+    test_runbook = """
+runbook:
+  id: test.mixed
+  name: "Test Mixed Steps"
+  description: "Test runbook with mixed step types"
+  version: "1.0.0"
+
+  steps:
+    - step_ref: redis_enterprise/kubernetes/install_operator
+      parameters:
+        namespace: "test"
+
+    - id: inline_step
+      name: "Inline Step"
+      description: "This is an inline step"
+      tool: kubectl
+      command: "kubectl get pods"
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(test_runbook)
+        temp_path = Path(f.name)
+
+    try:
+        steps_dir = Path("steps")
+        if not steps_dir.exists():
+            pytest.skip("Steps directory not found")
+
+        runbook = Runbook.from_yaml(temp_path, steps_dir=steps_dir)
+
+        assert len(runbook.steps) == 2
+        assert runbook.steps[0].id == "install_operator"  # From step_ref
+        assert runbook.steps[1].id == "inline_step"  # Inline
+    finally:
+        temp_path.unlink()
+
+
+def test_step_file_not_found():
+    """Test that missing step files raise appropriate error."""
+    import tempfile
+
+    test_runbook = """
+runbook:
+  id: test.missing
+  name: "Test Missing Step"
+  description: "Test runbook with missing step reference"
+  version: "1.0.0"
+
+  steps:
+    - step_ref: nonexistent/step/path
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(test_runbook)
+        temp_path = Path(f.name)
+
+    try:
+        steps_dir = Path("steps")
+        if not steps_dir.exists():
+            pytest.skip("Steps directory not found")
+
+        with pytest.raises(FileNotFoundError):
+            Runbook.from_yaml(temp_path, steps_dir=steps_dir)
+    finally:
+        temp_path.unlink()

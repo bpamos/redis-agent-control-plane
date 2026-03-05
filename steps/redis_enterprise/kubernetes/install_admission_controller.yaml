@@ -1,0 +1,30 @@
+step:
+  id: install_admission_controller
+  name: "Install admission controller"
+  description: "Deploy the Redis Enterprise admission controller webhook"
+  doc_refs:
+    - path: "operate/kubernetes/deployment/quick-start.md"
+      section: "Install the admission controller"
+  rag_assist:
+    query: "How do I install the Redis Enterprise admission controller on Kubernetes?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 5
+  tool: kubectl
+  command: "kubectl apply -f https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/master/admission/webhook.yaml -n $NAMESPACE $CONTEXT_FLAG"
+  validation:
+    command: "kubectl get validatingwebhookconfiguration redb-admission -n $NAMESPACE $CONTEXT_FLAG"
+    expect: "redb-admission"
+    retry: 5
+    retry_delay: 3
+  parameters:
+    - name: namespace
+      type: string
+      default: "redis"
+      description: "Kubernetes namespace"
+    - name: context_flag
+      type: string
+      default: ""
+      description: "Optional kubectl context flag (e.g., '--context=cluster2')"
+

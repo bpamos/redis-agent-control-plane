@@ -1,0 +1,51 @@
+step:
+  id: wait_db_active_rest_api
+  name: "Wait for database to become active"
+  description: "Wait for the database to be fully provisioned and active using REST API polling"
+  doc_refs:
+    - path: "operate/rs/databases/create.md"
+      section: "Test client connectivity"
+  rag_assist:
+    query: "How do I verify a Redis database is active and ready?"
+    filters:
+      category: operate
+      product_area: redis_software
+    max_results: 3
+  tool: curl
+  command: |
+    for i in {1..30}; do
+      STATUS=$(curl -k -s -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
+        https://$CLUSTER_HOST:9443/v1/bdbs | \
+        jq -r '.[] | select(.name=="'$DB_NAME'") | .status')
+      if [ "$STATUS" = "active" ]; then
+        echo "Database is active"
+        exit 0
+      fi
+      echo "Waiting for database to become active... (attempt $i/30)"
+      sleep 5
+    done
+    echo "Database did not become active within timeout"
+    exit 1
+  validation:
+    command: "curl -k -s -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' https://$CLUSTER_HOST:9443/v1/bdbs | jq -r '.[] | select(.name==\"$DB_NAME\") | .status' | grep -q 'active'"
+    expect: "active"
+    retry: 30
+    retry_delay: 5
+  parameters:
+    - name: cluster_host
+      type: string
+      default: "localhost"
+      description: "Cluster host for REST API"
+    - name: admin_username
+      type: string
+      default: "admin@redis.com"
+      description: "Admin username"
+    - name: admin_password
+      type: string
+      default: "password"
+      description: "Admin password"
+    - name: db_name
+      type: string
+      default: "redis-db"
+      description: "Database name"
+
