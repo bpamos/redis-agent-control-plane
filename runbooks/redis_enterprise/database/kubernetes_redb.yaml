@@ -1,0 +1,157 @@
+runbook:
+  id: runbook.redis_enterprise.database.kubernetes_redb
+  name: "Redis Enterprise Database on Kubernetes - REDB"
+  description: "Create a standard Redis Enterprise Database (REDB) on an existing Kubernetes Redis Enterprise Cluster (REC). Supports HA with replication."
+  version: "2.0.0"
+  redis_version: "8.0.x"
+  validated: true
+  validation_date: "2026-03-05"
+
+  prerequisites:
+    - check: kubectl_installed
+      command: "kubectl version --client"
+      error_message: "kubectl is not installed"
+
+    - check: rec_deployed
+      command: "kubectl get rec $REC_NAME -n $NAMESPACE -o jsonpath='{.status.state}' | grep -q 'Running'"
+      error_message: "Redis Enterprise Cluster (REC) is not deployed or not running. Deploy REC using clustered.yaml first"
+
+    - check: rec_has_capacity
+      command: "kubectl get rec $REC_NAME -n $NAMESPACE -o jsonpath='{.status.state}' | grep -q 'Running'"
+      error_message: "REC does not have available capacity"
+
+  steps:
+    - id: step_1
+      name: "Create REDB custom resource"
+      description: "Create a RedisEnterpriseDatabase (REDB) custom resource with specified configuration"
+      doc_refs:
+        - path: "operate/kubernetes/re-databases/db-controller.md"
+          section: "Create a database"
+      rag_assist:
+        query: "How do I create a Redis Enterprise Database on Kubernetes using REDB?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: kubectl
+      command: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: app.redislabs.com/v1alpha1
+        kind: RedisEnterpriseDatabase
+        metadata:
+          name: $DB_NAME
+          namespace: $NAMESPACE
+        spec:
+          redisEnterpriseCluster:
+            name: $REC_NAME
+          memorySize: 1GB
+          replication: true
+          shardCount: 1
+          tlsMode: disabled
+          type: redis
+          persistence: aofEverySecond
+          proxyPolicy: all-master-shards
+        EOF
+      validation:
+        command: "kubectl get redb $DB_NAME -n $NAMESPACE"
+        expect: "$DB_NAME"
+        retry: 5
+        retry_delay: 3
+
+    - id: step_2
+      name: "Wait for REDB to become active"
+      description: "Wait for the database to be fully provisioned and active"
+      doc_refs:
+        - path: "operate/kubernetes/re-databases/db-controller.md"
+          section: "Create a database"
+      rag_assist:
+        query: "How do I verify a REDB is active on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: "kubectl wait --for=condition=ready --timeout=600s redb/$DB_NAME -n $NAMESPACE"
+      validation:
+        command: "kubectl get redb $DB_NAME -n $NAMESPACE -o jsonpath='{.status.status}' | grep -q 'active'"
+        expect: "active"
+        retry: 60
+        retry_delay: 5
+
+    - id: step_3
+      name: "Get database connection secret"
+      description: "Retrieve the database connection information from the Kubernetes secret"
+      doc_refs:
+        - path: "operate/kubernetes/re-databases/db-controller.md"
+          section: "Connect to a database"
+      rag_assist:
+        query: "How do I get connection information for a REDB on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: |
+        echo "Database endpoint:"
+        kubectl get secret redb-$DB_NAME -n $NAMESPACE -o jsonpath='{.data.service_name}' | base64 --decode
+        echo ""
+        echo "Port:"
+        kubectl get secret redb-$DB_NAME -n $NAMESPACE -o jsonpath='{.data.port}' | base64 --decode
+        echo ""
+      validation:
+        command: "kubectl get secret redb-$DB_NAME -n $NAMESPACE"
+        expect: "redb-$DB_NAME"
+
+    - id: step_4
+      name: "Test database connectivity"
+      description: "Verify the database is accessible by performing a simple PING command from within the cluster"
+      doc_refs:
+        - path: "operate/kubernetes/re-databases/db-controller.md"
+          section: "Connect to a database"
+      rag_assist:
+        query: "How do I test connectivity to a REDB on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: |
+        kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE -- \
+          redis-cli -h redb-$DB_NAME -p $(kubectl get secret redb-$DB_NAME -n $NAMESPACE -o jsonpath='{.data.port}' | base64 --decode) PING
+      validation:
+        command: "kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE -- redis-cli -h redb-$DB_NAME PING | grep -q 'PONG'"
+        expect: "PONG"
+        retry: 5
+        retry_delay: 3
+
+  post_validations:
+    - check: redb_exists
+      command: "kubectl get redb $DB_NAME -n $NAMESPACE"
+      expect: "$DB_NAME"
+
+    - check: redb_active
+      command: "kubectl get redb $DB_NAME -n $NAMESPACE -o jsonpath='{.status.status}' | grep -q 'active'"
+      expect: "active"
+
+    - check: secret_exists
+      command: "kubectl get secret redb-$DB_NAME -n $NAMESPACE"
+      expect: "redb-$DB_NAME"
+
+    - check: database_accessible
+      command: "kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE -- redis-cli -h redb-$DB_NAME PING | grep -q 'PONG'"
+      expect: "PONG"
+
+  rollback:
+    - command: "kubectl delete redb $DB_NAME -n $NAMESPACE"
+
+  notes:
+    - "This runbook creates a standard Redis Enterprise Database (REDB) on Kubernetes"
+    - "Prerequisites: REC must be deployed using clustered.yaml before running this runbook"
+    - "Database specifications: 1GB memory, 1 master shard, replication enabled, HA enabled"
+    - "The database controller automatically creates connection secrets and services"
+    - "Connection information is stored in the secret 'redb-<DB_NAME>'"
+    - "Environment variables required: NAMESPACE, REC_NAME, DB_NAME"
+    - "For in-cluster access, use the service name: redb-<DB_NAME>"
+    - "For external access, configure ingress or LoadBalancer service"
+    - "Persistence is set to 'aofEverySecond' for durability with good performance"
+    - "TLS is disabled by default - enable in production by setting tlsMode: enabled"

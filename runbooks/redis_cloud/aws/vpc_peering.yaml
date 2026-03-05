@@ -1,0 +1,140 @@
+runbook:
+  id: runbook.redis_cloud.aws.vpc_peering
+  name: "Redis Cloud on AWS - VPC Peering"
+  description: "Set up Redis Cloud subscription with VPC peering on AWS for private connectivity"
+  version: "1.0.0"
+
+  prerequisites:
+    - check: redis_cloud_cli
+      command: "which redis-cloud-cli"
+      error_message: "redis-cloud-cli not found. Install from: https://github.com/RedisLabs/redis-cloud-cli"
+      optional: true
+
+    - check: aws_cli
+      command: "aws --version"
+      error_message: "AWS CLI not found. Install from: https://aws.amazon.com/cli/"
+
+    - check: aws_credentials
+      command: "aws sts get-caller-identity"
+      error_message: "AWS credentials not configured. Run 'aws configure' first."
+
+    - check: redis_cloud_api_key
+      command: "test -n \"$REDIS_CLOUD_API_KEY\" && test -n \"$REDIS_CLOUD_SECRET_KEY\""
+      error_message: "Redis Cloud API credentials not set. Set REDIS_CLOUD_API_KEY and REDIS_CLOUD_SECRET_KEY environment variables."
+
+  steps:
+    - id: step_1
+      name: "Create Redis Cloud subscription"
+      description: "Create a new Redis Cloud subscription in the target AWS region"
+      doc_refs:
+        - path: "operate/rc/subscriptions/create-subscription.md"
+          section: "Create subscription"
+      rag_assist:
+        query: "How do I create a Redis Cloud subscription with VPC peering?"
+        filters:
+          category: operate
+          product_area: redis_cloud
+        max_results: 5
+      tool: redis-cloud-cli
+      command: "redis-cloud-cli subscription create --name my-subscription --cloud-provider AWS --region us-east-1 --vpc-peering true"
+      validation:
+        command: "redis-cloud-cli subscription list | grep my-subscription"
+        expect: "active"
+        retry: 10
+        retry_delay: 30
+
+    - id: step_2
+      name: "Get VPC peering details"
+      description: "Retrieve VPC peering connection details from Redis Cloud"
+      doc_refs:
+        - path: "operate/rc/security/vpc-peering.md"
+          section: "VPC peering details"
+      rag_assist:
+        query: "How do I get VPC peering connection details from Redis Cloud?"
+        filters:
+          category: operate
+          product_area: redis_cloud
+        max_results: 3
+      tool: redis-cloud-cli
+      command: "redis-cloud-cli subscription get --name my-subscription --output json | jq '.vpc_peering'"
+      validation:
+        command: "redis-cloud-cli subscription get --name my-subscription --output json | jq -r '.vpc_peering.status'"
+        expect: "pending-acceptance"
+
+    - id: step_3
+      name: "Accept VPC peering connection"
+      description: "Accept the VPC peering connection request in AWS"
+      doc_refs:
+        - path: "operate/rc/security/vpc-peering.md"
+          section: "Accept peering"
+      rag_assist:
+        query: "How do I accept a VPC peering connection from Redis Cloud in AWS?"
+        filters:
+          category: operate
+          product_area: redis_cloud
+        max_results: 5
+      tool: aws
+      command: "aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $PEERING_CONNECTION_ID"
+      validation:
+        command: "aws ec2 describe-vpc-peering-connections --vpc-peering-connection-ids $PEERING_CONNECTION_ID --query 'VpcPeeringConnections[0].Status.Code' --output text"
+        expect: "active"
+        retry: 5
+        retry_delay: 10
+
+    - id: step_4
+      name: "Update route tables"
+      description: "Update AWS route tables to route traffic to Redis Cloud VPC"
+      doc_refs:
+        - path: "operate/rc/security/vpc-peering.md"
+          section: "Configure routing"
+      rag_assist:
+        query: "How do I configure route tables for Redis Cloud VPC peering?"
+        filters:
+          category: operate
+          product_area: redis_cloud
+        max_results: 5
+      tool: aws
+      command: "aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-cidr-block $REDIS_CLOUD_CIDR --vpc-peering-connection-id $PEERING_CONNECTION_ID"
+      validation:
+        command: "aws ec2 describe-route-tables --route-table-ids $ROUTE_TABLE_ID --query 'RouteTables[0].Routes[?VpcPeeringConnectionId==`$PEERING_CONNECTION_ID`]' --output text"
+        expect: "$PEERING_CONNECTION_ID"
+
+    - id: step_5
+      name: "Create Redis database"
+      description: "Create a Redis database in the subscription"
+      doc_refs:
+        - path: "operate/rc/databases/create-database.md"
+          section: "Create database"
+      rag_assist:
+        query: "How do I create a Redis database in Redis Cloud?"
+        filters:
+          category: operate
+          product_area: redis_cloud
+        max_results: 3
+      tool: redis-cloud-cli
+      command: "redis-cloud-cli database create --subscription my-subscription --name my-database --memory-limit 1GB"
+      validation:
+        command: "redis-cloud-cli database list --subscription my-subscription | grep my-database"
+        expect: "active"
+        retry: 10
+        retry_delay: 15
+
+  post_validations:
+    - check: peering_active
+      command: "aws ec2 describe-vpc-peering-connections --vpc-peering-connection-ids $PEERING_CONNECTION_ID --query 'VpcPeeringConnections[0].Status.Code' --output text"
+      expect: "active"
+
+    - check: database_active
+      command: "redis-cloud-cli database list --subscription my-subscription | grep my-database"
+      expect: "active"
+
+    - check: connectivity
+      command: "redis-cli -h $REDIS_ENDPOINT -p $REDIS_PORT PING"
+      expect: "PONG"
+
+  rollback:
+    - command: "redis-cloud-cli database delete --subscription my-subscription --name my-database"
+    - command: "aws ec2 delete-route --route-table-id $ROUTE_TABLE_ID --destination-cidr-block $REDIS_CLOUD_CIDR"
+    - command: "aws ec2 delete-vpc-peering-connection --vpc-peering-connection-id $PEERING_CONNECTION_ID"
+    - command: "redis-cloud-cli subscription delete --name my-subscription"
+

@@ -1,0 +1,147 @@
+runbook:
+  id: runbook.redis_enterprise.vm.clustered
+  name: "Redis Enterprise on VM - 3-Node Cluster"
+  description: "Deploy a production-ready 3-node Redis Enterprise Software 8.0.x cluster on Linux VMs with high availability and replication support"
+  version: "2.0.0"
+  redis_version: "8.0.x"
+  validated: true
+  validation_date: "2026-03-05"
+
+  prerequisites:
+    - check: ssh_access_node1
+      command: "ssh -o ConnectTimeout=5 -o BatchMode=yes $NODE1_HOST exit"
+      error_message: "Cannot SSH to node 1. Set NODE1_HOST environment variable and configure SSH keys."
+
+    - check: ssh_access_node2
+      command: "ssh -o ConnectTimeout=5 -o BatchMode=yes $NODE2_HOST exit"
+      error_message: "Cannot SSH to node 2. Set NODE2_HOST environment variable and configure SSH keys."
+
+    - check: ssh_access_node3
+      command: "ssh -o ConnectTimeout=5 -o BatchMode=yes $NODE3_HOST exit"
+      error_message: "Cannot SSH to node 3. Set NODE3_HOST environment variable and configure SSH keys."
+
+    - check: os_supported_all_nodes
+      command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'cat /etc/os-release | grep -E \"(Ubuntu|CentOS|RHEL)\"' || exit 1; done"
+      error_message: "All nodes must run Ubuntu, CentOS, or RHEL. See supported platforms documentation."
+
+    - check: installation_package_available
+      command: "test -f $REDIS_ENTERPRISE_PACKAGE"
+      error_message: "Redis Enterprise installation package not found. Download from https://cloud.redis.io/#/rlec-downloads and set REDIS_ENTERPRISE_PACKAGE environment variable."
+
+  steps:
+    - id: step_1
+      name: "Copy installation package to all nodes"
+      description: "Transfer the Redis Enterprise installation package to all three VMs"
+      doc_refs:
+        - path: "operate/rs/installing-upgrading/install/prepare-install/download-install-package.md"
+          section: "Download installation package"
+      tool: scp
+      command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do scp $REDIS_ENTERPRISE_PACKAGE $host:~/; done"
+      validation:
+        command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'ls -l ~/$(basename $REDIS_ENTERPRISE_PACKAGE)' || exit 1; done"
+        expect: "$(basename $REDIS_ENTERPRISE_PACKAGE)"
+
+    - id: step_2
+      name: "Extract installation files on all nodes"
+      description: "Extract the Redis Enterprise installation package on all three hosts"
+      doc_refs:
+        - path: "operate/rs/installing-upgrading/install/install-on-linux.md"
+          section: "Extract the installation files"
+      tool: ssh
+      command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'tar vxf $(basename $REDIS_ENTERPRISE_PACKAGE)'; done"
+      validation:
+        command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'test -f install.sh && echo ok' || exit 1; done"
+        expect: "ok"
+
+    - id: step_3
+      name: "Run installation script on all nodes"
+      description: "Execute the Redis Enterprise installation script on all three nodes with silent mode"
+      doc_refs:
+        - path: "operate/rs/installing-upgrading/install/install-on-linux.md"
+          section: "Run the installation script"
+        - path: "operate/rs/installing-upgrading/install/install-script.md"
+          section: "Installation script options"
+      rag_assist:
+        query: "How do I install Redis Enterprise on multiple nodes for a cluster?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: ssh
+      command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'sudo ./install.sh -y'; done"
+      validation:
+        command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'curl -k -s -o /dev/null -w \"%{http_code}\" https://localhost:8443' | grep -q 200 || exit 1; done"
+        expect: "200"
+        retry: 5
+        retry_delay: 10
+
+    - id: step_4
+      name: "Create cluster on first node"
+      description: "Navigate to https://$NODE1_HOST:8443 and create a new cluster using the web UI. Configure cluster name, admin credentials, license, and storage paths."
+      doc_refs:
+        - path: "operate/rs/clusters/new-cluster-setup.md"
+          section: "Create a new cluster"
+      rag_assist:
+        query: "How do I create a new Redis Enterprise cluster?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: manual
+      command: "echo 'Manual step: Navigate to https://$NODE1_HOST:8443, select Create new cluster, and complete setup wizard'"
+      validation:
+        command: "curl -k -s -o /dev/null -w '%{http_code}' https://$NODE1_HOST:8443"
+        expect: "200"
+
+    - id: step_5
+      name: "Add second node to cluster"
+      description: "Navigate to https://$NODE2_HOST:8443, select Join existing cluster, and enter the cluster credentials from node 1"
+      doc_refs:
+        - path: "operate/rs/clusters/add-node.md"
+          section: "Add node to cluster"
+      rag_assist:
+        query: "How do I add a node to an existing Redis Enterprise cluster?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: manual
+      command: "echo 'Manual step: Navigate to https://$NODE2_HOST:8443, select Join existing cluster, enter node 1 address and credentials'"
+      validation:
+        command: "curl -k -s -o /dev/null -w '%{http_code}' https://$NODE2_HOST:8443"
+        expect: "200"
+
+    - id: step_6
+      name: "Add third node to cluster"
+      description: "Navigate to https://$NODE3_HOST:8443, select Join existing cluster, and enter the cluster credentials from node 1"
+      doc_refs:
+        - path: "operate/rs/clusters/add-node.md"
+          section: "Add node to cluster"
+      tool: manual
+      command: "echo 'Manual step: Navigate to https://$NODE3_HOST:8443, select Join existing cluster, enter node 1 address and credentials'"
+      validation:
+        command: "curl -k -s -o /dev/null -w '%{http_code}' https://$NODE3_HOST:8443"
+        expect: "200"
+
+  post_validations:
+    - check: all_nodes_web_ui_accessible
+      command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do curl -k -s -o /dev/null -w '%{http_code}' https://$host:8443 | grep -q 200 || exit 1; done"
+      expect: "200"
+
+    - check: all_nodes_installed
+      command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'test -d /opt/redislabs && echo ok' || exit 1; done"
+      expect: "ok"
+
+  rollback:
+    - command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'sudo /opt/redislabs/bin/rlcheck --uninstall || true'; done"
+    - command: "for host in $NODE1_HOST $NODE2_HOST $NODE3_HOST; do ssh $host 'sudo rm -rf /opt/redislabs'; done"
+
+  notes:
+    - "Minimum 3 nodes required for production deployment with high availability"
+    - "Odd number of nodes (3, 5, 7, etc.) recommended for quorum"
+    - "Cluster setup and node joining completed via web UI"
+    - "Each node must be able to communicate with all other nodes"
+    - "Default installation creates 'redislabs' user and group on each node"
+    - "Installation uses self-signed TLS certificates by default"
+    - "After cluster setup, create databases via Cluster Manager UI"
+

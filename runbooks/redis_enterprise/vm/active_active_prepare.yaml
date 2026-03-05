@@ -1,0 +1,229 @@
+runbook:
+  id: runbook.redis_enterprise.vm.active_active_prepare
+  name: "Redis Enterprise on VM - Active-Active Preparation"
+  description: "Configure two Redis Enterprise VM clusters for Active-Active (CRDB) database deployment. Handles cluster linking, FQDN configuration, and credential exchange."
+  version: "2.0.0"
+  redis_version: "8.0.x"
+  validated: true
+  validation_date: "2026-03-05"
+
+  prerequisites:
+    - check: cluster1_deployed
+      command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin status' | grep -q 'cluster ok'"
+      error_message: "Cluster 1 is not deployed or not healthy. Deploy using clustered_3node.yaml first."
+
+    - check: cluster2_deployed
+      command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin status' | grep -q 'cluster ok'"
+      error_message: "Cluster 2 is not deployed or not healthy. Deploy using clustered_3node.yaml first."
+
+    - check: network_connectivity
+      command: "ssh $CLUSTER1_NODE1_HOST 'ping -c 1 $CLUSTER2_FQDN'"
+      error_message: "Cannot reach cluster 2 from cluster 1. Ensure VPC peering, security groups, and DNS are configured."
+
+    - check: dns_resolution
+      command: "ssh $CLUSTER1_NODE1_HOST 'nslookup $CLUSTER2_FQDN' && ssh $CLUSTER2_NODE1_HOST 'nslookup $CLUSTER1_FQDN'"
+      error_message: "DNS resolution failed. Ensure FQDNs are resolvable from both clusters."
+
+  steps:
+    - id: step_1
+      name: "Configure cluster 1 FQDN"
+      description: "Set the Fully Qualified Domain Name for cluster 1 that cluster 2 will use to reach it"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Prerequisites"
+      rag_assist:
+        query: "How do I configure cluster FQDN for Active-Active in Redis Enterprise?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: ssh
+      command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster config fqdn $CLUSTER1_FQDN'"
+      validation:
+        command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster info' | grep -q 'Cluster FQDN: $CLUSTER1_FQDN'"
+        expect: "Cluster FQDN: $CLUSTER1_FQDN"
+
+    - id: step_2
+      name: "Configure cluster 2 FQDN"
+      description: "Set the Fully Qualified Domain Name for cluster 2 that cluster 1 will use to reach it"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Prerequisites"
+      rag_assist:
+        query: "How do I configure cluster FQDN for Active-Active in Redis Enterprise?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: ssh
+      command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster config fqdn $CLUSTER2_FQDN'"
+      validation:
+        command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster info' | grep -q 'Cluster FQDN: $CLUSTER2_FQDN'"
+        expect: "Cluster FQDN: $CLUSTER2_FQDN"
+
+    - id: step_3
+      name: "Get cluster 1 certificate"
+      description: "Export cluster 1's TLS certificate for exchange with cluster 2"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Create an Active-Active database"
+      rag_assist:
+        query: "How do I export cluster certificate for Active-Active linking?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: ssh
+      command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster certificate get' > /tmp/cluster1.crt"
+      validation:
+        command: "test -f /tmp/cluster1.crt && openssl x509 -in /tmp/cluster1.crt -noout -text"
+        expect: "Certificate:"
+
+    - id: step_4
+      name: "Get cluster 2 certificate"
+      description: "Export cluster 2's TLS certificate for exchange with cluster 1"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Create an Active-Active database"
+      rag_assist:
+        query: "How do I export cluster certificate for Active-Active linking?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: ssh
+      command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster certificate get' > /tmp/cluster2.crt"
+      validation:
+        command: "test -f /tmp/cluster2.crt && openssl x509 -in /tmp/cluster2.crt -noout -text"
+        expect: "Certificate:"
+
+    - id: step_5
+      name: "Import cluster 2 certificate to cluster 1"
+      description: "Import cluster 2's certificate into cluster 1's trust store"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Add participating clusters"
+      rag_assist:
+        query: "How do I import peer cluster certificate for Active-Active?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: ssh
+      command: "cat /tmp/cluster2.crt | ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster certificate set'"
+      validation:
+        command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster certificate list' | grep -q 'cluster2'"
+        expect: "cluster2"
+        retry: 3
+        retry_delay: 2
+
+    - id: step_6
+      name: "Import cluster 1 certificate to cluster 2"
+      description: "Import cluster 1's certificate into cluster 2's trust store"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Add participating clusters"
+      rag_assist:
+        query: "How do I import peer cluster certificate for Active-Active?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: ssh
+      command: "cat /tmp/cluster1.crt | ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster certificate set'"
+      validation:
+        command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster certificate list' | grep -q 'cluster1'"
+        expect: "cluster1"
+        retry: 3
+        retry_delay: 2
+
+    - id: step_7
+      name: "Link cluster 1 to cluster 2"
+      description: "Add cluster 2 as a peer cluster in cluster 1's configuration"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Add participating clusters"
+      rag_assist:
+        query: "How do I link Redis Enterprise clusters for Active-Active using rladmin?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: ssh
+      command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer add $CLUSTER2_FQDN'"
+      validation:
+        command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer list' | grep -q '$CLUSTER2_FQDN'"
+        expect: "$CLUSTER2_FQDN"
+        retry: 5
+        retry_delay: 3
+
+    - id: step_8
+      name: "Link cluster 2 to cluster 1"
+      description: "Add cluster 1 as a peer cluster in cluster 2's configuration"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Add participating clusters"
+      rag_assist:
+        query: "How do I link Redis Enterprise clusters for Active-Active using rladmin?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: ssh
+      command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer add $CLUSTER1_FQDN'"
+      validation:
+        command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer list' | grep -q '$CLUSTER1_FQDN'"
+        expect: "$CLUSTER1_FQDN"
+        retry: 5
+        retry_delay: 3
+
+    - id: step_9
+      name: "Verify cluster linking"
+      description: "Verify that both clusters can communicate and are ready for Active-Active database creation"
+      doc_refs:
+        - path: "operate/rs/databases/active-active/create.md"
+          section: "Verify creation"
+      rag_assist:
+        query: "How do I verify Active-Active cluster linking is successful?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: ssh
+      command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer list'"
+      validation:
+        command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer list' | grep -q 'Status: Connected'"
+        expect: "Status: Connected"
+        retry: 10
+        retry_delay: 5
+
+  post_validations:
+    - check: cluster1_fqdn_configured
+      command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster info' | grep -q 'Cluster FQDN: $CLUSTER1_FQDN'"
+      expect: "Cluster FQDN: $CLUSTER1_FQDN"
+
+    - check: cluster2_fqdn_configured
+      command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster info' | grep -q 'Cluster FQDN: $CLUSTER2_FQDN'"
+      expect: "Cluster FQDN: $CLUSTER2_FQDN"
+
+    - check: cluster1_peer_connected
+      command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer list' | grep -q 'Status: Connected'"
+      expect: "Status: Connected"
+
+    - check: cluster2_peer_connected
+      command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer list' | grep -q 'Status: Connected'"
+      expect: "Status: Connected"
+
+  rollback:
+    - command: "ssh $CLUSTER1_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer remove $CLUSTER2_FQDN'"
+    - command: "ssh $CLUSTER2_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin cluster peer remove $CLUSTER1_FQDN'"
+    - command: "rm -f /tmp/cluster1.crt /tmp/cluster2.crt"
+
+  notes:
+    - "This runbook prepares two Redis Enterprise VM clusters for Active-Active (CRDB) database deployment"
+    - "Prerequisites: Both clusters must be deployed using clustered_3node.yaml before running this runbook"
+    - "Infrastructure requirements: VPC peering, security groups, and DNS must be configured in Terraform"
+    - "After completion, use the CRDB database creation runbook to create Active-Active databases"
+    - "Environment variables required: CLUSTER1_NODE1_HOST, CLUSTER2_NODE1_HOST, CLUSTER1_FQDN, CLUSTER2_FQDN"
+
+

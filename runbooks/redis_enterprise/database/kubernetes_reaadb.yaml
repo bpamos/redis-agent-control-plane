@@ -1,0 +1,248 @@
+runbook:
+  id: runbook.redis_enterprise.database.kubernetes_reaadb
+  name: "Redis Enterprise Database on Kubernetes - Active-Active (REAADB)"
+  description: "Create an Active-Active REAADB (Redis Enterprise Active-Active Database) across two Kubernetes Redis Enterprise Clusters. Requires clusters to be prepared for Active-Active."
+  version: "2.0.0"
+  redis_version: "8.0.x"
+  validated: true
+  validation_date: "2026-03-05"
+
+  prerequisites:
+    - check: kubectl_installed
+      command: "kubectl version --client"
+      error_message: "kubectl is not installed"
+
+    - check: rec1_deployed
+      command: "kubectl get rec $REC1_NAME -n $NAMESPACE1 -o jsonpath='{.status.state}' | grep -q 'Running'"
+      error_message: "REC 1 is not deployed or not running"
+
+    - check: rec2_deployed
+      command: "kubectl get rec $REC2_NAME -n $NAMESPACE2 --context=$CLUSTER2_CONTEXT -o jsonpath='{.status.state}' | grep -q 'Running'"
+      error_message: "REC 2 is not deployed or not running"
+
+    - check: admission_controller_installed
+      command: "kubectl get validatingwebhookconfiguration redb-admission -n $NAMESPACE1"
+      error_message: "Admission controller not installed. Run active_active.yaml preparation runbook first"
+
+    - check: clusters_prepared
+      command: "kubectl get secret $REC2_NAME -n $NAMESPACE1"
+      error_message: "Clusters not prepared for Active-Active. Run active_active.yaml preparation runbook first"
+
+  steps:
+    - id: step_1
+      name: "Create RERC for cluster 1"
+      description: "Create RedisEnterpriseRemoteCluster (RERC) custom resource for the first participating cluster"
+      doc_refs:
+        - path: "operate/kubernetes/active-active/create-reaadb.md"
+          section: "Create RERC custom resources"
+      rag_assist:
+        query: "How do I create RERC for Active-Active on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: kubectl
+      command: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: app.redislabs.com/v1alpha1
+        kind: RedisEnterpriseRemoteCluster
+        metadata:
+          name: $RERC1_NAME
+          namespace: $NAMESPACE1
+        spec:
+          recName: $REC1_NAME
+          recNamespace: $NAMESPACE1
+          apiFqdnUrl: https://$REC1_API_FQDN:9443
+          dbFqdnSuffix: $REC1_DB_SUFFIX
+          secretName: redis-enterprise-$REC1_NAME
+        EOF
+      validation:
+        command: "kubectl get rerc $RERC1_NAME -n $NAMESPACE1 -o jsonpath='{.status.status}' | grep -q 'Active'"
+        expect: "Active"
+        retry: 10
+        retry_delay: 3
+
+    - id: step_2
+      name: "Create RERC for cluster 2"
+      description: "Create RedisEnterpriseRemoteCluster (RERC) custom resource for the second participating cluster"
+      doc_refs:
+        - path: "operate/kubernetes/active-active/create-reaadb.md"
+          section: "Create RERC custom resources"
+      rag_assist:
+        query: "How do I create RERC for Active-Active on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: kubectl
+      command: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: app.redislabs.com/v1alpha1
+        kind: RedisEnterpriseRemoteCluster
+        metadata:
+          name: $RERC2_NAME
+          namespace: $NAMESPACE1
+        spec:
+          recName: $REC2_NAME
+          recNamespace: $NAMESPACE2
+          apiFqdnUrl: https://$REC2_API_FQDN:9443
+          dbFqdnSuffix: $REC2_DB_SUFFIX
+          secretName: redis-enterprise-$REC2_NAME
+        EOF
+      validation:
+        command: "kubectl get rerc $RERC2_NAME -n $NAMESPACE1 -o jsonpath='{.status.status}' | grep -q 'Active'"
+        expect: "Active"
+        retry: 10
+        retry_delay: 3
+
+    - id: step_3
+      name: "Create REAADB custom resource"
+      description: "Create RedisEnterpriseActiveActiveDatabase (REAADB) linking both participating clusters"
+      doc_refs:
+        - path: "operate/kubernetes/active-active/create-reaadb.md"
+          section: "Create the REAADB"
+      rag_assist:
+        query: "How do I create a REAADB on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: kubectl
+      command: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: app.redislabs.com/v1alpha1
+        kind: RedisEnterpriseActiveActiveDatabase
+        metadata:
+          name: $DB_NAME
+          namespace: $NAMESPACE1
+        spec:
+          participatingClusters:
+            - name: $RERC1_NAME
+            - name: $RERC2_NAME
+          globalConfigurations:
+            memorySize: 1GB
+            shardCount: 1
+            replication: true
+            tlsMode: disabled
+            persistence: aofEverySecond
+            proxyPolicy: all-master-shards
+        EOF
+      validation:
+        command: "kubectl get reaadb $DB_NAME -n $NAMESPACE1"
+        expect: "$DB_NAME"
+        retry: 5
+        retry_delay: 3
+
+    - id: step_4
+      name: "Wait for REAADB to become active"
+      description: "Wait for the Active-Active database to be fully provisioned across both clusters"
+      doc_refs:
+        - path: "operate/kubernetes/active-active/create-reaadb.md"
+          section: "Create the REAADB"
+      rag_assist:
+        query: "How do I verify REAADB is active on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: "kubectl wait --for=condition=ready --timeout=900s reaadb/$DB_NAME -n $NAMESPACE1"
+      validation:
+        command: "kubectl get reaadb $DB_NAME -n $NAMESPACE1 -o jsonpath='{.status.status}' | grep -q 'active'"
+        expect: "active"
+        retry: 90
+        retry_delay: 5
+
+    - id: step_5
+      name: "Verify REAADB instances on both clusters"
+      description: "Verify that database instances exist and are linked on both participating clusters"
+      doc_refs:
+        - path: "operate/kubernetes/active-active/create-reaadb.md"
+          section: "Create the REAADB"
+      rag_assist:
+        query: "How do I verify REAADB instances across Kubernetes clusters?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: |
+        echo "Checking cluster 1:"
+        kubectl get redb -n $NAMESPACE1 | grep $DB_NAME
+        echo "Checking cluster 2:"
+        kubectl get redb -n $NAMESPACE2 --context=$CLUSTER2_CONTEXT | grep $DB_NAME
+      validation:
+        command: "kubectl get redb -n $NAMESPACE1 | grep -q '$DB_NAME' && kubectl get redb -n $NAMESPACE2 --context=$CLUSTER2_CONTEXT | grep -q '$DB_NAME'"
+        expect: "$DB_NAME"
+        retry: 30
+        retry_delay: 5
+
+    - id: step_6
+      name: "Test cross-cluster replication"
+      description: "Verify Active-Active replication by writing to cluster 1 and reading from cluster 2"
+      doc_refs:
+        - path: "operate/kubernetes/active-active/create-reaadb.md"
+          section: "Create the REAADB"
+      rag_assist:
+        query: "How do I test Active-Active database synchronization on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: |
+        # Write to cluster 1
+        kubectl run redis-test-write-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE1 -- \
+          redis-cli -h redb-$DB_NAME SET test_key "reaadb-test-$(date +%s)"
+        sleep 5
+        # Read from cluster 2
+        kubectl run redis-test-read-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE2 --context=$CLUSTER2_CONTEXT -- \
+          redis-cli -h redb-$DB_NAME GET test_key
+      validation:
+        command: "kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE1 -- redis-cli -h redb-$DB_NAME SET aa_test 'sync_test' && sleep 5 && kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE2 --context=$CLUSTER2_CONTEXT -- redis-cli -h redb-$DB_NAME GET aa_test | grep -q 'sync_test'"
+        expect: "sync_test"
+        retry: 10
+        retry_delay: 5
+
+  post_validations:
+    - check: reaadb_exists
+      command: "kubectl get reaadb $DB_NAME -n $NAMESPACE1"
+      expect: "$DB_NAME"
+
+    - check: reaadb_active
+      command: "kubectl get reaadb $DB_NAME -n $NAMESPACE1 -o jsonpath='{.status.status}' | grep -q 'active'"
+      expect: "active"
+
+    - check: rerc1_active
+      command: "kubectl get rerc $RERC1_NAME -n $NAMESPACE1 -o jsonpath='{.status.status}' | grep -q 'Active'"
+      expect: "Active"
+
+    - check: rerc2_active
+      command: "kubectl get rerc $RERC2_NAME -n $NAMESPACE1 -o jsonpath='{.status.status}' | grep -q 'Active'"
+      expect: "Active"
+
+    - check: instances_exist_both_clusters
+      command: "kubectl get redb -n $NAMESPACE1 | grep -q '$DB_NAME' && kubectl get redb -n $NAMESPACE2 --context=$CLUSTER2_CONTEXT | grep -q '$DB_NAME'"
+      expect: "$DB_NAME"
+
+    - check: replication_working
+      command: "kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE1 -- redis-cli -h redb-$DB_NAME SET validation_key 'test' && sleep 5 && kubectl run redis-test-$RANDOM --rm -i --restart=Never --image=redis:latest -n $NAMESPACE2 --context=$CLUSTER2_CONTEXT -- redis-cli -h redb-$DB_NAME GET validation_key | grep -q 'test'"
+      expect: "test"
+
+  rollback:
+    - command: "kubectl delete reaadb $DB_NAME -n $NAMESPACE1"
+    - command: "kubectl delete rerc $RERC1_NAME -n $NAMESPACE1"
+    - command: "kubectl delete rerc $RERC2_NAME -n $NAMESPACE1"
+
+  notes:
+    - "This runbook creates an Active-Active REAADB across two Kubernetes Redis Enterprise Clusters"
+    - "Prerequisites: Both RECs must be deployed and prepared using active_active.yaml"
+    - "Database specifications: 1GB memory per instance, 1 master shard, replication enabled"
+    - "The REAADB controller automatically creates REDB instances on both participating clusters"
+    - "All write operations are synchronized across both instances without conflict"
+    - "Environment variables required: NAMESPACE1, NAMESPACE2, REC1_NAME, REC2_NAME, RERC1_NAME, RERC2_NAME, REC1_API_FQDN, REC2_API_FQDN, REC1_DB_SUFFIX, REC2_DB_SUFFIX, DB_NAME, CLUSTER2_CONTEXT"
+    - "Database name must be unique across all participating clusters (less than 63 characters)"
+    - "After creation, applications can write to either cluster and reads will be consistent across both"
+    - "Connection information is stored in secrets 'redb-<DB_NAME>' in each namespace"
+    - "For production use, enable TLS by setting tlsMode: enabled in globalConfigurations"
+
