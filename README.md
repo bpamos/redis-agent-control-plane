@@ -9,16 +9,31 @@ This project provides an intelligent agent control plane that combines:
 - **RAG Pipeline** - Retrieval-Augmented Generation for documentation-based validation and context
 - **Validated Runbooks** - 10 production-ready deployment runbooks extracted from official Redis documentation
 
-The system enables reliable, repeatable Redis Enterprise deployments across VM, Kubernetes, and Cloud platforms with Active-Active support.
+The system produces validated runbooks and context packs for reliable, repeatable Redis Enterprise deployments across VM, Kubernetes, and Cloud platforms with Active-Active support.
+
+## What This Repo Is (and Isn't)
+
+**This repo IS:**
+- **Deterministic planning + validated runbooks** - 100% reproducible deployment procedures
+- **RAG-powered knowledge retrieval** - Semantic search over Redis documentation
+- **Context pack builder** - Combines deterministic doc refs with RAG-retrieved chunks for agent consumption
+
+**This repo IS NOT:**
+- **A deployment executor** - Does not run Terraform, kubectl, or infrastructure commands
+- **A hosted service** - Currently a Python library/CLI (API layer deferred)
+
+**Execution happens elsewhere:**
+- Terraform deployments: `redis-terraform-projects` (future external consumer)
+- This repo produces: validated runbooks + context packs for deployments
 
 ## Current Status
 
-### ✅ Orchestration Layer (Phases A-E COMPLETE - 2026-03-05)
+### ✅ Orchestration Layer (Phases A-F COMPLETE - 2026-03-05)
 
 **Deterministic Routing System:**
 - 100% deterministic routing (same DeploymentSpec → same Runbook, always)
 - Validated over 100 iterations with zero variance
-- 53 passing tests, 11 skipped
+- 62 passing tests, 11 skipped
 
 **10 Validated Runbooks:**
 - Infrastructure: 1 (Redis Cloud VPC peering)
@@ -172,10 +187,12 @@ redis-agent-control-plane/
 │   └── redis_agent_control_plane/
 │       ├── __init__.py
 │       ├── main.py
-│       ├── orchestration/          # ✅ Orchestration Layer (Phases A-E COMPLETE)
+│       ├── orchestration/          # ✅ Orchestration Layer (Phases A-F COMPLETE)
 │       │   ├── deployment_spec.py  # Deployment specification dataclass
 │       │   ├── runbook.py          # Runbook dataclass with YAML loader
-│       │   └── router.py           # Deterministic routing logic
+│       │   ├── router.py           # Deterministic routing logic
+│       │   ├── context_pack.py     # ContextPack and RAGChunk dataclasses
+│       │   └── context_builder.py  # Context pack builder with RAG integration
 │       └── rag/                    # ✅ RAG Pipeline (Phase 3 COMPLETE)
 │           ├── chunker.py          # Adaptive H2/H3 chunking
 │           ├── embedder.py         # Local embedding model
@@ -204,6 +221,7 @@ redis-agent-control-plane/
 │   ├── test_deployment_spec.py     # DeploymentSpec tests
 │   ├── test_router.py              # Router determinism tests (11 tests)
 │   ├── test_runbook.py             # Runbook loader tests
+│   ├── test_context_builder.py     # Context pack builder tests (9 tests)
 │   └── test_rag_*.py               # RAG pipeline tests
 ├── scripts/
 │   ├── validate_runbooks.py        # ✅ Runbook validation CLI
@@ -270,8 +288,9 @@ PYTHONPATH=src pytest tests/test_router.py -v
 
 ### Test Coverage
 
-- **53 passing tests**, 11 skipped
+- **62 passing tests**, 11 skipped (integration tests requiring Redis)
 - Orchestration: 100% deterministic routing validated
+- Context Pack Builder: Product area isolation, bounded results, provenance tracking
 - RAG Pipeline: Chunking, embedding, indexing, retrieval
 - Runbook Loading: YAML parsing, validation, error handling
 
@@ -292,12 +311,12 @@ PYTHONPATH=src pytest tests/test_router.py -v
 - **Phase C** - Kubernetes and Active-Active preparation runbooks
 - **Phase D** - Database deployment runbooks
 - **Phase E** - Harness and testing tools
+- **Phase F** - Context Pack Builder (RAG integration with orchestration)
 - **RAG Pipeline (Phase 3)** - Production-ready RAG with hybrid search
 
 ### 🔮 Future Phases (Deferred)
 
-- **Phase F** - Context Pack Builder (RAG integration with orchestration)
-- **Agent Layer** - Execution engine for runbooks
+- **Agent Layer** - Execution engine for runbooks (external consumer)
 - **API Layer** - REST/gRPC endpoints for external interaction
 
 ## Contributing

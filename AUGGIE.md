@@ -71,6 +71,77 @@ See `SECURITY.md` for full security guidelines.
 - Do not guess at requirements, APIs, or infrastructure details
 - Do not invent product features or capabilities
 
+## Before Starting Work
+
+**Pre-flight checklist:**
+
+1. **Check ACTIVE_TASK** in TASKS.md Execution Gate
+   - If ACTIVE_TASK is NONE → you may only edit TASKS.md to propose tasks
+   - If ACTIVE_TASK is set → you may only work on that task
+
+2. **Restate scope** (in/out)
+   - What files will you touch?
+   - What is explicitly out of scope?
+
+3. **Confirm understanding**
+   - What is the definition of done?
+   - What tests will you run?
+   - What are the acceptance criteria?
+
+4. **Check doc alignment**
+   - README.md = external overview (what users see)
+   - CONTEXT.md = current truth architecture (what exists today)
+   - TASKS.md = execution gate + backlog (what's next)
+   - notes/ = history and deep reports (what happened)
+
+## Task Gating Rules
+
+**Only execute ACTIVE task scope; otherwise BLOCKED.**
+
+- If ACTIVE_TASK is set in TASKS.md → work ONLY on that task
+- If ACTIVE_TASK is NONE → do NOT make code changes (only propose tasks)
+- If scope is unclear → output "BLOCKED: <reason>" and stop
+- If you need to work on something else → ask to change ACTIVE_TASK first
+
+**Scope discipline:**
+- Respect "Scope (In)" and "Scope (Out)" strictly
+- Do NOT make drive-by refactors
+- Do NOT touch files outside "Files Likely Touched"
+- Do NOT add features not in acceptance criteria
+
+## Doc Alignment Rule
+
+**Each doc file has a specific role:**
+
+- **README.md** = External overview
+  - What users see first
+  - High-level features and status
+  - Quick start and installation
+  - Roadmap (completed + future)
+
+- **CONTEXT.md** = Current truth architecture
+  - What exists today (present tense)
+  - Module layout and conventions
+  - Runtime assumptions
+  - Non-goals and constraints
+
+- **TASKS.md** = Execution gate + backlog
+  - ACTIVE_TASK (what's being worked on now)
+  - Task definitions with acceptance criteria
+  - Completion notes (3-6 bullets + link to notes/)
+
+- **notes/** = History and deep reports
+  - Phase completion summaries
+  - Research findings
+  - Detailed test results
+  - Architecture decisions
+
+**When updating docs:**
+- Keep README.md user-facing and high-level
+- Keep CONTEXT.md present-tense (no history)
+- Keep TASKS.md focused on execution (trim completion notes)
+- Move detailed reports to notes/
+
 ## Standard Workflow
 
 1. **Restate the task** - Confirm understanding and define success criteria
@@ -219,273 +290,13 @@ If Auggie is:
 
 ---
 
-# Branch Task: deterministic-runbook-layer
+# Last Completed Work
 
-## Current Phase: [ORCH-003] Kubernetes Cluster & Active-Active Preparation
-
-**Phase A (Deterministic Routing + Runbook Registry) - ✅ COMPLETE (2026-03-05)**
-- **Task**: [ORCH-001] Phase A: Deterministic Routing + Runbook Registry
-- **Status**: ✅ ALL OBJECTIVES MET - FOUNDATION COMPLETE
-
-**What Was Built:**
-- ✅ DeploymentSpec dataclass with validation (141 lines)
-- ✅ Runbook dataclass with YAML loader (175 lines)
-- ✅ RunbookRouter with deterministic routing (159 lines)
-- ✅ 5 sample runbook YAMLs (structural examples only)
-- ✅ Unit tests: 11 new tests, all passing
-- ✅ 100% deterministic routing validated (100 iterations)
-
-**Phase B (Validated Runbooks - VM Deployments) - ✅ COMPLETE (2026-03-05)**
-- **Task**: [ORCH-002] Validated Runbooks for Redis Enterprise
-- **Status**: ✅ ALL OBJECTIVES MET - PRODUCTION READY
-
-**What Was Built:**
-- ✅ Single-node VM runbook (v2.0.0, 5 doc_refs validated)
-- ✅ 3-node VM cluster runbook (v2.0.0, 7 doc_refs validated)
-- ✅ Validation script (`scripts/validate_runbooks.py`)
-- ✅ Documentation research and validation methodology
-- ✅ All commands extracted from Redis Software 8.0.x documentation
-
-**Key Achievements:**
-- 🎯 **100% documentation-based** - All commands from actual Redis docs
-- ✅ **All doc_refs validated** - 12 total doc_refs, all point to real files
-- ✅ **Version-specific** - Target Redis Software 8.0.x explicitly
-- ✅ **Production ready** - Runbooks ready for real deployments
-
-## Current Status: All Orchestration Phases Complete! ✅
-
-**Phase C (Kubernetes Cluster & Active-Active Preparation) - ✅ COMPLETE (2026-03-05)**
-- **Task**: [ORCH-003] Phase C: Kubernetes Cluster & Active-Active Preparation
-- **Status**: ✅ ALL OBJECTIVES MET
-
-**What Was Built:**
-- ✅ Kubernetes 3-node cluster runbook (v2.0.0, 6 steps)
-- ✅ VM Active-Active preparation runbook (v2.0.0, 9 steps)
-- ✅ Kubernetes Active-Active preparation runbook (v2.0.0, 9 steps)
-- ✅ Updated validation script for Kubernetes runbooks
-- ✅ All doc_refs validated, all commands from actual documentation
-
-**Phase D (Database Deployment Runbooks) - ✅ COMPLETE (2026-03-05)**
-- **Task**: [ORCH-004] Phase D: Database Deployment Runbooks
-- **Status**: ✅ ALL OBJECTIVES MET
-
-**What Was Built:**
-- ✅ VM standard database runbook (v2.0.0, 4 steps)
-- ✅ VM CRDB (Active-Active) runbook (v2.0.0, 5 steps)
-- ✅ Kubernetes REDB runbook (v2.0.0, 4 steps)
-- ✅ Kubernetes REAADB (Active-Active) runbook (v2.0.0, 6 steps)
-- ✅ Updated validation script for database runbooks
-- ✅ All doc_refs validated, all commands from actual documentation
-
-**Phase E (Harness/Tests for Routing and Validation) - ✅ COMPLETE (2026-03-05)**
-- **Task**: [ORCH-005] Phase E: Harness/Tests for Routing and Validation
-- **Status**: ✅ ALL OBJECTIVES MET
-
-**What Was Built:**
-- ✅ Interactive routing test CLI (`scripts/test_routing.py`)
-- ✅ 100% deterministic routing validated (100 iterations)
-- ✅ All 10 runbooks pass validation
-- ✅ 53 tests pass, 11 skipped
-- ✅ Complete harness framework operational
+**Branch:** deterministic
+**Phases A-F Complete:** 2026-03-05
+- Phase F: Context Pack Builder with RAG integration
+- 62 passing tests, 11 skipped (integration tests)
+📄 See `notes/DETERMINISTIC_BRANCH_SUMMARY.md` for full history
 
 ---
-
-## Complete Runbook Inventory (10 Total) ✅
-
-**Infrastructure (1):**
-1. ✅ `redis_cloud/aws/vpc_peering.yaml` - Redis Cloud VPC peering on AWS
-
-**Cluster Deployments (3):**
-2. ✅ `vm/single_node.yaml` - Single-node VM (dev/test)
-3. ✅ `vm/clustered_3node.yaml` - 3-node VM cluster (reusable for multi-region)
-4. ✅ `kubernetes/clustered.yaml` - 3-node K8s cluster (reusable for multi-region)
-
-**Active-Active Preparation (2):**
-5. ✅ `vm/active_active_prepare.yaml` - Configure 2 VM clusters for Active-Active
-6. ✅ `kubernetes/active_active.yaml` - Configure 2 K8s clusters for Active-Active
-
-**Database Deployments (4):**
-7. ✅ `database/vm_standard.yaml` - Standard VM database (simple + HA)
-8. ✅ `database/vm_crdb.yaml` - Active-Active CRDB (requires #5)
-9. ✅ `database/kubernetes_redb.yaml` - Standard K8s database
-10. ✅ `database/kubernetes_reaadb.yaml` - Active-Active K8s database (requires #6)
-
-**Status:** 10/10 complete (100%) 🎉
-
----
-
-## Next Phase: [ORCH-006] Context Pack Builder (Deferred)
-
-**Objective:** Integrate RAG as bounded enrichment using existing RedisRetriever.
-
-**Status:** Deferred - Low priority
-
-**Note:** All high-priority orchestration phases (A-E) are complete. The deterministic runbook layer is production-ready with 10 validated runbooks covering the full deployment lifecycle.
-
----
-
-# Previous Work: RAG Pipeline (COMPLETE ✅)
-
-**Phase 1-3 (RAG Pipeline) - ✅ COMPLETE (2026-03-04)**
-- ✅ Production-ready RAG pipeline with 20,249 chunks indexed
-- ✅ Hybrid search (vector + BM25) with FT.CREATE index
-- ✅ 4,207 documents processed from Redis docs corpus
-- ✅ <100ms query latency with HNSW algorithm
-- ✅ All quality checks pass, fully tested
-
-**Test the RAG Pipeline:**
-```bash
-# Query for Redis Enterprise installation docs
-PYTHONPATH=src venv/bin/python -c "
-from redis_agent_control_plane.rag.retriever import RedisRetriever
-retriever = RedisRetriever()
-results = retriever.search(
-    query='How do I install Redis Enterprise on a Linux VM?',
-    product_area='redis_software',
-    category='operate',
-    top_k=10
-)
-for r in results:
-    print(f'{r[\"doc_path\"]}: {r[\"section_heading\"]}')
-"
-```
-
----
-
-# Branch Task: rag-redis-docs-pipeline (Phase 1) - COMPLETE ✅
-
-## Objective
-On the `rag-redis-docs-pipeline` branch, complete **Phase 1** of the Redis Docs RAG work:
-- Update planning docs (TASKS.md, CONTEXT.md)
-- Create a `notes/` folder (if missing)
-- Analyze reference repos and the local `docs/` corpus structure
-- Produce a single findings document: `notes/rag_reference_findings.md`
-
-**Important:** Phase 1 is analysis/design only. Do NOT implement new RAG code yet.
-
-## Inputs (local repos under sibling `../` relative to this repo root)
-Reference sources to analyze:
-
-1) Notebooks:
-- `../redis-ai-resources/python-recipes/RAG/04_advanced_redisvl.ipynb`
-- `../redis-ai-resources/python-recipes/vector-search/02_hybrid_search.ipynb`
-
-2) Repos:
-- `../redis-rag-workbench/`
-  - Ignore UI components; extract ingestion + chunking + retrieval patterns that are useful for our pipeline
-- `../redis-slack-worker-agent/`
-  - Focus on indexing/retrieval/chunking patterns; note embedding cache approach for later phases
-- `../docs/` (Redis docs corpus we will vectorize)
-  - Inspect `content/**`
-  - Inspect `for-ais-only/**` (this is critical for chunking/metadata rules)
-
-### Must-read docs corpus structure files
-- `../docs/for-ais-only/REPOSITORY_MAP_FOR_AI_AGENTS.md`
-- `../docs/for-ais-only/metadata_docs/PAGE_METADATA_FORMAT.md`
-- `../docs/for-ais-only/render_hook_docs/README.md`
-
-## Step 1 — Create required folders
-Ensure this exists (create if missing):
-- `notes/`
-
-Do not modify `.gitignore`.
-
-## Step 2 — Update TASKS.md
-Append a new Epic section:
-
-### EPIC: Redis Docs RAG Pipeline (Vectors stored in Redis)
-Goal: Build a robust RAG pipeline to ingest Redis documentation, chunk it intelligently, embed chunks, store vectors + metadata in Redis, and support high-precision retrieval (including metadata filtering and hybrid search) for an engineering deployment agent.
-
-Add phased tasks:
-- Phase 1: analysis + design (this task)
-- Phase 2: implement baseline pipeline in `src/redis_agent_control_plane/rag/`
-- Phase 3: specialize chunking/filters for `../docs/` and add hybrid search
-
-Phase 1 must include:
-- the reference sources list above
-- the required deliverable `notes/rag_reference_findings.md`
-- definition of done (per-repo analysis + proposed schema + chunking plan + retrieval plan)
-
-## Step 3 — Update CONTEXT.md
-Append a section describing RAG scope/constraints:
-
-- We are building a Redis-backed RAG pipeline to support an "engineering-agent" that deploys Redis across multiple variants (VM, Kubernetes/EKS, Redis Cloud, Active-Active).
-- Vectors will be stored in Redis.
-- Design priorities:
-  1) Precision over recall
-  2) Filter-first retrieval (metadata filters before vector ranking)
-  3) Structure-aware chunking (H2/H3, preserve code blocks and procedural lists)
-  4) Provenance on every chunk (doc path/url, title, section heading, breadcrumb, ordering)
-
-Corpus focus:
-- Start with `../docs/content/operate/**`
-- Expand later to integrate/develop as needed
-
-Search capabilities:
-- Vector semantic search
-- Hybrid search (vector + keyword) for exact command/config lookups
-- Metadata filtering
-
-## Step 4 — Produce Phase 1 deliverable
-Create:
-
-- `notes/rag_reference_findings.md`
-
-It must contain:
-
-### A) Per-repo analysis (for each input repo/notebook)
-For each source:
-- What to reuse (specific files/modules/functions/classes/patterns)
-- What to ignore (UI, slack wrappers, etc.)
-- Key takeaways relevant to: ingestion, chunking, embedding, indexing, retrieval, hybrid search
-
-### B) Recommended pipeline architecture
-A consolidated "recommended pipeline" section:
-ingest → normalize → chunk → embed → index → retrieve
-
-### C) Proposed Redis index schema
-A concrete proposal for:
-- vector field config
-- TAG/TEXT/NUMERIC fields
-
-Include recommended metadata fields such as:
-- `source` (redis_docs)
-- `doc_path` (and/or `doc_url`)
-- `title`
-- `category` (operate/integrate/develop)
-- `product_area` (vm/kubernetes/cloud/active-active)
-- `section_heading`
-- `toc_path` / breadcrumb
-- `chunk_id`
-- `chunk_index` / `subchunk_index`
-- `content`
-- `embedding`
-
-### D) Redis docs chunking strategy (docs-specific)
-Define the chunking rules tailored to `../docs/`:
-- chunk by H2/H3 boundaries
-- preserve code blocks
-- preserve procedural lists/checklists
-- when to split very long sections and how to order subchunks
-- how to compute/assign `category` and `product_area` filters based on repo structure and metadata docs
-
-### E) Retrieval strategy
-Describe:
-- filter-first retrieval pattern
-- when to use vector search vs hybrid search
-- recommended default `top_k`, dedupe, and optional rerank hooks
-
-### F) Risks / pitfalls / quality gates
-List common failures and how we detect them:
-- splitting code blocks
-- losing hierarchy
-- mixing Cloud and Enterprise guidance
-- overly generic chunks
-- weak filters leading to wrong retrieval
-
-## Constraints (Phase 1)
-- Do NOT implement new RAG code in `src/redis_agent_control_plane/rag/` yet.
-- Do NOT refactor unrelated code.
-- Keep changes minimal (low blast radius).
-- Follow the repository's standard workflow and output format for non-trivial work.
 

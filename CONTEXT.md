@@ -2,12 +2,29 @@
 
 ## What This Repo Is
 
-- **Agent control plane** for simplifying Redis Enterprise Infrastructure deployments
-- **Context engine + RAG workflow** to provide intelligent assistance for deployment operations
-- Designed to be **extensible** for other use cases beyond Redis Enterprise in the future
-- Lightweight, focused on reducing complexity in infrastructure deployment
-- TODO: confirm primary deployment targets (local dev, production, cloud providers)
-- TODO: confirm if this is a standalone service or library/framework
+**Current Truth (as of 2026-03-05):**
+
+This repo provides **deterministic runbook routing** and a **Redis-backed RAG index**
+of Redis documentation. It is a Python library/CLI that produces validated deployment
+procedures and context packs for Redis Enterprise infrastructure.
+
+**What it does:**
+- Routes deployment specs to validated runbooks (100% deterministic)
+- Retrieves relevant documentation via RAG (semantic + keyword search)
+- Assembles context packs (deterministic refs + RAG chunks)
+
+**What it does NOT do:**
+- Execute Terraform, kubectl, or infrastructure commands
+- Deploy infrastructure directly
+- Run as a hosted service (API layer deferred)
+
+**Execution is out of scope:**
+- Terraform execution lives in `redis-terraform-projects` (future external repo)
+- This repo is consumed by execution engines, not an executor itself
+
+**Current form:**
+- Python library/CLI (Poetry or pip+venv)
+- Hosted API is deferred to future phases
 
 ## Architecture at a Glance
 
@@ -19,9 +36,8 @@
   - `test_smoke.py` - Basic smoke tests
 
 **Planned structure:**
-- ✅ `/src/redis_agent_control_plane/orchestration/` - Deterministic runbook layer (COMPLETE - Phases A-E)
+- ✅ `/src/redis_agent_control_plane/orchestration/` - Deterministic runbook layer + context pack builder (COMPLETE - Phases A-F)
 - TODO: `/src/redis_agent_control_plane/agent/` - Agent control plane logic and orchestration
-- TODO: `/src/redis_agent_control_plane/context_engine/` - Context retrieval and management
 - ✅ `/src/redis_agent_control_plane/rag/` - RAG workflow implementation (COMPLETE - Phase 3)
 - TODO: `/src/redis_agent_control_plane/api/` - REST/gRPC endpoints for external interaction
 - TODO: `/src/redis_agent_control_plane/config/` - Configuration management
@@ -32,13 +48,14 @@
 ## Non-goals / Constraints
 
 **Deployment:**
-- TODO: deployment targets (local/Docker/Kubernetes/cloud)
-- TODO: whether this runs as sidecar, standalone service, or CLI tool
+- Currently: Python library/CLI (Poetry or pip+venv)
+- Future: Hosted API service (deferred)
+- Not a sidecar or standalone deployment executor
 
 **Data stores:**
-- Uses Redis (likely Redis Stack for vector search capabilities)
-- TODO: confirm if other databases are needed (PostgreSQL, etc.)
-- TODO: confirm Redis version requirements
+- Uses Redis 8.4+ (native vector search, no modules required)
+- No other databases needed
+- Production-tested on Redis Cloud (1GB instance)
 
 **Language/Runtime:**
 - Primary language: **Python 3.11+** (tested with Python 3.14)
@@ -181,11 +198,12 @@ make all
 
 ## Orchestration Layer (Deterministic Runbook System) ✅
 
-**Status:** COMPLETE - Phases A-E (2026-03-05)
+**Status:** COMPLETE - Phases A-F (2026-03-05)
 
 **What we built:**
 - Deterministic routing system (DeploymentSpec → Runbook)
 - 10 validated runbooks covering full deployment lifecycle
+- Context pack builder with RAG integration
 - RAG-assisted validation framework
 - Interactive testing and debugging tools
 
@@ -194,6 +212,8 @@ make all
   - `deployment_spec.py` - Deployment specification dataclass
   - `runbook.py` - Runbook dataclass with YAML loader
   - `router.py` - Deterministic routing logic
+  - `context_pack.py` - ContextPack and RAGChunk dataclasses
+  - `context_builder.py` - Context pack builder with RAG integration
 - `/runbooks/` - 10 validated runbooks (YAML format)
   - Redis Cloud: 1 (VPC peering)
   - Redis Enterprise VM: 3 (single-node, 3-node cluster, AA prep)
@@ -202,10 +222,11 @@ make all
 - `/scripts/`
   - `validate_runbooks.py` - Automated runbook validation
   - `test_routing.py` - Interactive routing test CLI
-- `/tests/` - 53 passing tests, 100% deterministic routing
+- `/tests/` - 62 passing tests, 100% deterministic routing
 
 **Key Features:**
 - 100% deterministic routing (same spec → same runbook, always)
+- Context pack builder with product area isolation and provenance tracking
 - All runbooks validated against actual Redis documentation
 - All commands extracted from Redis Enterprise 8.0.x docs
 - All doc_refs point to real documentation files
@@ -284,7 +305,7 @@ We are building a Redis-backed RAG pipeline to support an "engineering-agent" th
 - **Phase 2:** ✅ COMPLETE - Baseline pipeline implemented (ingest → normalize → chunk → embed → index → retrieve)
 - **Phase 2.5:** ✅ COMPLETE - Full corpus scale test with Redis Cloud (4,207 docs, 20,249 chunks, production ready)
 - **Phase 3:** ✅ COMPLETE - FT.CREATE index + Hybrid search (10-100x faster, vector + BM25 with RRF)
-- **Phase A-D:** 🚧 IN PROGRESS - Deterministic runbook layer (orchestration above RAG)
+- **Phase A-E:** ✅ COMPLETE - Deterministic runbook layer (orchestration above RAG)
 
 **RAG Pipeline Implementation Status (Phase 2 + Phase 3 COMPLETE - 2026-03-04):**
 
@@ -433,64 +454,54 @@ python3 scripts/test_retrieval_quality.py
 **Next Steps:**
 ✅ **Phase 3 Complete - RAG Pipeline Production Ready**
 - RAG pipeline is complete and ready for integration
-- Moving to deterministic runbook layer (Phase A-D)
+- Deterministic runbook layer (Phase A-E) complete
 
-## Deterministic Runbook Layer (Phase A-D - IN PROGRESS)
+## Orchestration Layer (Deterministic Runbook System) ✅
 
-**Purpose:**
-Build a deterministic orchestration layer above the RAG pipeline to enable reliable Redis deployment workflows across multiple variants (VM, Kubernetes, Redis Cloud, Active-Active).
+**Status:** COMPLETE - Phases A-F (2026-03-05)
 
-**Key Architectural Principle:**
-**RAG is a supporting subsystem, not the primary planner.**
+**What we built:**
+- Deterministic routing system (DeploymentSpec → Runbook)
+- 10 validated runbooks covering full deployment lifecycle
+- Context pack builder with RAG integration
+- RAG-assisted validation framework
+- Interactive testing and debugging tools
 
-The deterministic layer provides:
-- Structured runbooks with ordered steps
-- Validations and prerequisites
-- Tool integration hooks (kubectl, terraform, Redis CLI)
-- Deterministic document references
-- RAG used as **bounded context enrichment** per step
+**Components:**
+- `/src/redis_agent_control_plane/orchestration/`
+  - `deployment_spec.py` - Deployment specification dataclass
+  - `runbook.py` - Runbook dataclass with YAML loader
+  - `router.py` - Deterministic routing logic
+  - `context_pack.py` - ContextPack and RAGChunk dataclasses
+  - `context_builder.py` - Context pack builder with RAG integration
+- `/runbooks/` - 10 validated runbooks (YAML format)
+  - Redis Cloud: 1 (VPC peering)
+  - Redis Enterprise VM: 3 (single-node, 3-node cluster, AA prep)
+  - Redis Enterprise Kubernetes: 2 (3-node cluster, AA prep)
+  - Redis Enterprise Databases: 4 (VM standard, VM CRDB, K8s REDB, K8s REAADB)
+- `/scripts/`
+  - `validate_runbooks.py` - Automated runbook validation
+  - `test_routing.py` - Interactive routing test CLI
+- `/tests/` - 62 passing tests, 100% deterministic routing
 
-**Core Components:**
+**Key Features:**
+- 100% deterministic routing (same spec → same runbook, always)
+- Context pack builder with product area isolation and provenance tracking
+- All runbooks validated against actual Redis documentation
+- All commands extracted from Redis Enterprise 8.0.x docs
+- All doc_refs point to real documentation files
+- Complete test coverage with harness framework
 
-1. **DeploymentSpec** - Structured input contract
-   - Product: redis_enterprise | redis_cloud | redis_stack
-   - Platform: vm | kubernetes | eks | gke | aks | openshift
-   - Topology: single_node | clustered | active_active
-   - Cloud provider, networking, scale, requirements
+**Runbook Coverage:**
+- Infrastructure: Redis Cloud VPC peering
+- Cluster deployment: VM (single + 3-node), Kubernetes (3-node)
+- Active-Active prep: VM cluster linking, K8s admission controller
+- Database deployment: Standard + Active-Active (VM + K8s)
 
-2. **RunbookRouter** - Deterministic routing
-   - Rules-based (NOT embedding-based, NOT LLM-based)
-   - Maps DeploymentSpec → runbook_id
-   - Same input always produces same output
-
-3. **Runbook Registry** - Catalog of YAML runbooks
-   - Location: `/runbooks/`
-   - Format: YAML with JSON Schema validation
-   - Contains: prerequisites, steps, validations, doc refs, RAG assist queries
-
-4. **ContextPack** - Structured context assembly
-   - Deterministic doc references (always included)
-   - RAG-retrieved chunks (bounded by step-specific query)
-   - Provenance tracking (where did this come from?)
-   - Confidence scoring (how relevant is this?)
-
-**Implementation Phases:**
-- **Phase A:** [ORCH-001] Deterministic Routing + Runbook Registry (TODO)
-- **Phase B:** [ORCH-002] Runbook Schema + Sample Runbooks (TODO)
-- **Phase C:** [ORCH-003] Harness/Tests for Routing and Validation (TODO)
-- **Phase D:** [ORCH-004] Context Pack Builder (TODO)
-
-**Design Reference:**
-See `notes/NEXT_PHASE_DETERMINISTIC_LAYER.md` for complete architecture design.
-
-**What NOT to Do Yet:**
-- Do NOT implement execution engine
-- Do NOT integrate with kubectl/terraform/tools
-- Do NOT add LLM integration
-- Do NOT create APIs or endpoints
-- Do NOT refactor existing RAG pipeline
-
-**Focus:** Design and validate the deterministic layer first, then add execution capabilities.
+📄 **See:** `notes/PHASE_A_COMPLETE_PHASE_B_CRITICAL.md`,
+`notes/PHASE_B_COMPLETE.md`, `notes/PHASE_C_COMPLETE.md`,
+`notes/PHASE_D_COMPLETE.md`, `notes/PHASE_E_COMPLETE.md`,
+`notes/PHASE_F_COMPLETE.md` (to be created)
 
 ## Development Workflow
 
