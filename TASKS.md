@@ -1408,3 +1408,706 @@ feat(orchestration): add context pack builder with RAG integration
 
 Implements [ORCH-006] Phase F: Context Pack Builder
 ```
+
+---
+
+# 🚀 V1 Completion Tasks (Post-Phase F)
+
+These tasks transform the repo from "phases complete" to "v1 production-ready."
+
+**Goal:** Make the repo scalable, maintainable, and usable as a standalone tool.
+
+**Context:** All orchestration phases (A-F) are complete. Now we need to:
+1. Make routing data-driven (prevent if/else monster)
+2. Make runbooks composable (prevent copy-paste hell)
+3. Formalize the contract (versioned schema + validation)
+4. Make it usable (golden path CLI)
+5. Prevent drift (CI guardrails)
+6. Clarify direction (API or library/CLI)
+
+---
+
+## [V1-001] Phase 1A: Data-Driven Routing Registry
+Status: TODO
+Priority: HIGH
+
+### Problem Statement
+
+**Current state:**
+- Routing logic is hardcoded in `deployment_spec.py:to_runbook_id()`
+- Formula: `runbook.{product}.{platform}.{topology}`
+- Adding a new runbook requires code changes
+- No priority/fallback mechanism
+- No way to handle multiple runbooks matching same spec
+- The "if/else monster" is inevitable as we scale to 30+ runbooks
+
+**Why this matters:**
+- Adding runbooks should be config changes, not code changes
+- Need to support multiple runbooks for same spec (with priority)
+- Need to support fallback/default runbooks
+- Need to detect routing collisions early
+
+### Scope (In)
+
+**Create routing registry:**
+- Create `runbooks/_registry.yaml` with schema:
+  ```yaml
+  registry_version: "1.0.0"
+  runbooks:
+    - id: runbook.redis_enterprise.kubernetes.clustered
+      name: "Redis Enterprise on Kubernetes - 3-Node Cluster"
+      selectors:
+        product: redis_enterprise
+        platform: kubernetes
+        topology: clustered
+      priority: 100
+      enabled: true
+
+    - id: runbook.redis_enterprise.kubernetes.clustered_ha
+      name: "Redis Enterprise on Kubernetes - HA Cluster"
+      selectors:
+        product: redis_enterprise
+        platform: kubernetes
+        topology: clustered
+        scale.nodes: ">= 5"  # Advanced selector
+      priority: 200  # Higher priority = more specific
+      enabled: true
+  ```
+
+**Update router:**
+- Modify `router.py` to load registry on init
+- Implement generic matching algorithm:
+  1. Load all runbooks from registry
+  2. Filter by enabled=true
+  3. Match selectors against DeploymentSpec
+  4. Sort by priority (descending)
+  5. Return highest priority match
+  6. Fail loudly if no match or ambiguous match
+- Keep `to_runbook_id()` for backward compatibility (deprecated)
+- Add `route_with_registry()` as new method
+
+**Add validation:**
+- Create `scripts/validate_registry.py`:
+  - Validate registry YAML schema
+  - Check all runbook IDs exist as files
+  - Detect routing collisions (same selectors, same priority)
+  - Warn about unreachable runbooks (lower priority, same selectors)
+
+**Update existing runbooks:**
+- Add all 10 existing runbooks to registry
+- Assign priorities (100 for all, since no conflicts yet)
+
+### Scope (Out)
+
+- Advanced selector syntax (e.g., regex, ranges) - keep simple for v1
+- Dynamic runbook loading/hot-reload
+- Multi-registry support
+- Runbook versioning/deprecation (future)
+
+### Files to Create
+
+- `runbooks/_registry.yaml` - Routing registry
+- `scripts/validate_registry.py` - Registry validation script
+
+### Files to Modify
+
+- `src/redis_agent_control_plane/orchestration/router.py` - Add registry-based routing
+- `tests/test_router.py` - Add registry routing tests
+
+### Acceptance Criteria (Definition of Done)
+
+- [ ] `runbooks/_registry.yaml` created with all 10 existing runbooks
+- [ ] Registry schema documented in file header
+- [ ] `router.py` loads registry on init
+- [ ] `route_with_registry()` method implemented
+- [ ] Generic matching algorithm works (filter → match → sort → return)
+- [ ] Backward compatibility: `route()` still works (uses registry internally)
+- [ ] `scripts/validate_registry.py` created and passes
+- [ ] Validation detects: missing files, collisions, schema errors
+- [ ] 10 new tests pass (registry loading, matching, priority, collisions)
+- [ ] All existing tests still pass (62 passing)
+- [ ] Code passes lint/format/type-check
+- [ ] README updated with registry documentation
+
+### Suggested Commit Message
+
+```
+feat(orchestration): add data-driven routing registry
+
+- Add runbooks/_registry.yaml with all 10 runbooks
+- Implement registry-based routing in router.py
+- Add generic matching algorithm (filter → match → sort)
+- Add scripts/validate_registry.py for validation
+- Add 10 tests for registry routing
+- Maintain backward compatibility with to_runbook_id()
+
+Implements [V1-001] Phase 1A: Data-Driven Routing Registry
+```
+
+---
+
+## [V1-002] Phase 1B: Versioned Context Pack Schema
+Status: TODO
+Priority: HIGH
+
+### Problem Statement
+
+**Current state:**
+- `ContextPack` dataclass exists but has no version field
+- No way for consumers to detect breaking changes
+- No validation script for output artifacts
+- No formal contract for external systems
+
+**Why this matters:**
+- External systems (agents, terraform, etc.) need stable contracts
+- Schema evolution requires versioning
+- Need to validate output before handing to consumers
+
+### Scope (In)
+
+**Add versioning to ContextPack:**
+- Add fields to `ContextPack` dataclass:
+  ```python
+  plan_version: str = "1.0.0"  # Schema version
+  spec_version: str = "1.0.0"  # DeploymentSpec schema version
+  ```
+- Add `to_dict()` and `to_json()` methods for serialization
+- Add `from_dict()` and `from_json()` class methods for deserialization
+
+**Create validation script:**
+- Create `scripts/validate_plan.py`:
+  - Load context_pack.json
+  - Validate schema version compatibility
+  - Validate all required fields present
+  - Validate doc_refs format
+  - Validate RAG chunks have provenance
+  - Validate runbook_id matches registry
+  - Exit 0 if valid, exit 1 with errors if invalid
+
+**Add schema documentation:**
+- Create `docs/context_pack_schema.md`:
+  - Document all fields
+  - Document version compatibility rules
+  - Document validation rules
+  - Provide examples
+
+### Scope (Out)
+
+- Schema migration tools (future)
+- Multiple schema versions in parallel (future)
+- JSON Schema / OpenAPI spec generation (future)
+
+### Files to Create
+
+- `scripts/validate_plan.py` - Context pack validation script
+- `docs/context_pack_schema.md` - Schema documentation
+
+### Files to Modify
+
+- `src/redis_agent_control_plane/orchestration/context_pack.py` - Add versioning + serialization
+- `tests/test_context_builder.py` - Add serialization tests
+
+### Acceptance Criteria (Definition of Done)
+
+- [ ] `plan_version` and `spec_version` fields added to ContextPack
+- [ ] `to_dict()`, `to_json()`, `from_dict()`, `from_json()` methods implemented
+- [ ] `scripts/validate_plan.py` created and works
+- [ ] Validation catches: missing fields, invalid versions, bad doc_refs
+- [ ] `docs/context_pack_schema.md` created with full documentation
+- [ ] 5 new tests pass (serialization, deserialization, validation)
+- [ ] All existing tests still pass
+- [ ] Code passes lint/format/type-check
+- [ ] README updated with schema documentation link
+
+### Suggested Commit Message
+
+```
+feat(orchestration): add versioned context pack schema
+
+- Add plan_version and spec_version to ContextPack
+- Add to_dict/to_json/from_dict/from_json methods
+- Add scripts/validate_plan.py for validation
+- Add docs/context_pack_schema.md with full schema docs
+- Add 5 tests for serialization and validation
+
+Implements [V1-002] Phase 1B: Versioned Context Pack Schema
+```
+
+---
+
+## [V1-003] Phase 2A: Reusable Step Library
+Status: TODO
+Priority: HIGH
+
+### Problem Statement
+
+**Current state:**
+- 10 runbooks with full step definitions
+- Massive duplication (e.g., "Install Redis Enterprise Operator" in multiple runbooks)
+- Updating a common step requires editing multiple files
+- Will become unmaintainable at 30+ runbooks
+
+**Why this matters:**
+- DRY principle: define steps once, reference everywhere
+- Update once, applies everywhere
+- Easier to maintain and validate
+- Enables step composition and reuse
+
+### Scope (In)
+
+**Create step library:**
+- Create `steps/` directory structure:
+  ```
+  steps/
+    redis_enterprise/
+      vm/
+        install_package.yaml
+        create_cluster.yaml
+      kubernetes/
+        install_operator.yaml
+        wait_operator_ready.yaml
+        create_rec.yaml
+      database/
+        create_standard_db.yaml
+        create_crdb.yaml
+    redis_cloud/
+      aws/
+        create_vpc_peering.yaml
+  ```
+
+**Define step schema:**
+- Each step is a YAML file with:
+  ```yaml
+  step:
+    id: install_operator
+    name: "Install Redis Enterprise Operator"
+    description: "Deploy the Redis Enterprise Operator..."
+    doc_refs: [...]
+    rag_assist: {...}
+    tool: kubectl
+    command: "kubectl apply -f https://..."
+    validation: {...}
+    parameters:  # NEW: parameterizable fields
+      - name: namespace
+        type: string
+        default: "redis"
+      - name: operator_version
+        type: string
+        default: "latest"
+  ```
+
+**Update runbook schema:**
+- Runbooks reference steps instead of defining them:
+  ```yaml
+  runbook:
+    id: runbook.redis_enterprise.kubernetes.clustered
+    steps:
+      - step_ref: redis_enterprise/kubernetes/install_operator
+        parameters:
+          namespace: $NAMESPACE
+      - step_ref: redis_enterprise/kubernetes/wait_operator_ready
+      - step_ref: redis_enterprise/kubernetes/create_rec
+        parameters:
+          nodes: 3
+  ```
+
+**Update runbook loader:**
+- Modify `runbook.py` to:
+  - Load step references
+  - Resolve step files from `steps/` directory
+  - Merge parameters
+  - Build full RunbookStep objects
+
+**Migrate existing runbooks:**
+- Extract common steps from 10 runbooks
+- Create ~15-20 reusable steps
+- Update all 10 runbooks to use step references
+- Validate all runbooks still load correctly
+
+### Scope (Out)
+
+- Step versioning (future)
+- Step dependencies/ordering constraints (future)
+- Conditional steps (future)
+- Step marketplace/sharing (future)
+
+### Files to Create
+
+- `steps/` directory with ~15-20 step YAML files
+- `scripts/validate_steps.py` - Step validation script
+
+### Files to Modify
+
+- `src/redis_agent_control_plane/orchestration/runbook.py` - Add step resolution
+- All 10 runbook YAML files - Convert to step references
+- `tests/test_runbook.py` - Add step resolution tests
+
+### Acceptance Criteria (Definition of Done)
+
+- [ ] `steps/` directory created with ~15-20 reusable steps
+- [ ] Step schema documented in `steps/README.md`
+- [ ] Runbook schema updated to support step_ref
+- [ ] `runbook.py` resolves step references correctly
+- [ ] All 10 runbooks migrated to use step references
+- [ ] `scripts/validate_steps.py` created and passes
+- [ ] Validation checks: step files exist, parameters valid, schema correct
+- [ ] 10 new tests pass (step loading, resolution, parameters)
+- [ ] All existing tests still pass
+- [ ] Code passes lint/format/type-check
+- [ ] README updated with step library documentation
+
+### Suggested Commit Message
+
+```
+feat(orchestration): add reusable step library
+
+- Create steps/ directory with 15-20 reusable steps
+- Update runbook schema to support step_ref
+- Implement step resolution in runbook.py
+- Migrate all 10 runbooks to use step references
+- Add scripts/validate_steps.py for validation
+- Add 10 tests for step resolution
+
+Implements [V1-003] Phase 2A: Reusable Step Library
+```
+
+---
+
+## [V1-004] Phase 2B: Golden Path CLI
+Status: TODO
+Priority: MEDIUM
+
+### Problem Statement
+
+**Current state:**
+- `main.py` is just a smoke check
+- No obvious UX for: DeploymentSpec → context_pack.json
+- Scripts are scattered (validate_runbooks.py, test_routing.py, etc.)
+- Can't easily demo the system
+
+**Why this matters:**
+- Need one obvious workflow for users
+- Need to demo the system easily
+- Need to make it usable as a standalone tool
+
+### Scope (In)
+
+**Create CLI with commands:**
+- `plan` - Generate context pack from deployment spec:
+  ```bash
+  redis-agent-control-plane plan --spec deployment.yaml --output context_pack.json
+  redis-agent-control-plane plan --interactive  # Prompt for spec fields
+  ```
+
+- `explain` - Pretty-print context pack:
+  ```bash
+  redis-agent-control-plane explain context_pack.json
+  # Output: Markdown report with runbook, steps, doc refs, RAG chunks
+  ```
+
+- `search` - Ad-hoc RAG query:
+  ```bash
+  redis-agent-control-plane search "How do I enable TLS on Redis Enterprise?"
+  redis-agent-control-plane search "Active-Active setup" --product redis_enterprise
+  ```
+
+- `validate` - Validate runbooks/registry/steps:
+  ```bash
+  redis-agent-control-plane validate --runbooks
+  redis-agent-control-plane validate --registry
+  redis-agent-control-plane validate --steps
+  redis-agent-control-plane validate --all
+  ```
+
+- `list` - List available runbooks/steps:
+  ```bash
+  redis-agent-control-plane list runbooks
+  redis-agent-control-plane list steps
+  ```
+
+**Update main.py:**
+- Replace smoke check with Click-based CLI
+- Add command routing
+- Add --help documentation
+- Add --version flag
+
+**Add example files:**
+- Create `examples/` directory:
+  - `deployment_vm_single.yaml`
+  - `deployment_k8s_cluster.yaml`
+  - `deployment_cloud_vpc.yaml`
+
+### Scope (Out)
+
+- Interactive TUI (future)
+- Web UI (future)
+- Shell completion (future)
+- Config file support (future)
+
+### Files to Create
+
+- `src/redis_agent_control_plane/cli/` - CLI module
+  - `__init__.py`
+  - `plan.py` - Plan command
+  - `explain.py` - Explain command
+  - `search.py` - Search command
+  - `validate.py` - Validate command
+  - `list.py` - List command
+- `examples/` - Example deployment specs
+
+### Files to Modify
+
+- `src/redis_agent_control_plane/main.py` - Replace with Click CLI
+- `pyproject.toml` - Add Click dependency, add console_scripts entry point
+- `README.md` - Update Quick Start with CLI examples
+
+### Acceptance Criteria (Definition of Done)
+
+- [ ] Click-based CLI implemented with 5 commands
+- [ ] `plan` command generates context_pack.json from spec
+- [ ] `explain` command pretty-prints context pack as markdown
+- [ ] `search` command queries RAG index
+- [ ] `validate` command runs all validation scripts
+- [ ] `list` command shows available runbooks/steps
+- [ ] `examples/` directory with 3 example specs
+- [ ] `--help` documentation for all commands
+- [ ] 10 new tests pass (CLI commands, argument parsing)
+- [ ] All existing tests still pass
+- [ ] Code passes lint/format/type-check
+- [ ] README Quick Start updated with CLI examples
+
+### Suggested Commit Message
+
+```
+feat(cli): add golden path CLI with plan/explain/search commands
+
+- Add Click-based CLI with 5 commands
+- Add plan command (spec → context_pack.json)
+- Add explain command (pretty-print context pack)
+- Add search command (ad-hoc RAG queries)
+- Add validate and list commands
+- Add examples/ directory with 3 example specs
+- Add 10 tests for CLI commands
+
+Implements [V1-004] Phase 2B: Golden Path CLI
+```
+
+---
+
+## [V1-005] Phase 3A: CI Anti-Rot Guardrails
+Status: TODO
+Priority: MEDIUM
+
+### Problem Statement
+
+**Current state:**
+- Tests exist (62 passing) but no CI
+- No automated validation of runbooks/registry/steps
+- No protection against schema drift
+- Quality can degrade over time
+
+**Why this matters:**
+- Prevent runbooks from drifting from schema
+- Catch broken doc_refs early
+- Detect routing collisions automatically
+- Maintain quality over time
+
+### Scope (In)
+
+**Create GitHub Actions workflow:**
+- Create `.github/workflows/ci.yml`:
+  - Run on: push, pull_request
+  - Jobs:
+    1. Test (pytest)
+    2. Lint (ruff)
+    3. Format check (black --check)
+    4. Type check (mypy)
+    5. Validate runbooks
+    6. Validate registry
+    7. Validate steps
+    8. Validate context pack schema
+
+**Add validation checks:**
+- Runbook validation:
+  - All required fields present
+  - doc_refs format valid
+  - No duplicate step IDs
+  - All step_refs resolve
+- Registry validation:
+  - All runbook IDs exist as files
+  - No routing collisions
+  - No unreachable runbooks
+- Step validation:
+  - All required fields present
+  - Parameters have types
+  - No duplicate step IDs
+- Context pack validation:
+  - Schema version valid
+  - All required fields present
+  - Provenance complete
+
+**Add pre-commit hooks:**
+- Create `.pre-commit-config.yaml`:
+  - Run black, ruff, mypy
+  - Run validation scripts
+  - Prevent commits with errors
+
+### Scope (Out)
+
+- Integration tests with real Redis (future)
+- Performance benchmarks (future)
+- Security scanning (future)
+- Deployment automation (future)
+
+### Files to Create
+
+- `.github/workflows/ci.yml` - GitHub Actions workflow
+- `.pre-commit-config.yaml` - Pre-commit hooks
+- `scripts/ci_validate_all.sh` - Run all validations
+
+### Files to Modify
+
+- `README.md` - Add CI badge, document validation
+
+### Acceptance Criteria (Definition of Done)
+
+- [ ] `.github/workflows/ci.yml` created with 8 jobs
+- [ ] All jobs pass on current main branch
+- [ ] Validation catches: schema errors, missing files, collisions
+- [ ] `.pre-commit-config.yaml` created
+- [ ] `scripts/ci_validate_all.sh` runs all validations
+- [ ] CI badge added to README
+- [ ] Documentation updated with validation instructions
+- [ ] All existing tests still pass
+- [ ] CI runs successfully on push/PR
+
+### Suggested Commit Message
+
+```
+ci: add anti-rot guardrails with GitHub Actions
+
+- Add .github/workflows/ci.yml with 8 jobs
+- Add validation for runbooks, registry, steps, schema
+- Add .pre-commit-config.yaml for local validation
+- Add scripts/ci_validate_all.sh
+- Add CI badge to README
+
+Implements [V1-005] Phase 3A: CI Anti-Rot Guardrails
+```
+
+---
+
+## [V1-006] Phase 3B: API Clarity Decision
+Status: TODO
+Priority: LOW
+
+### Problem Statement
+
+**Current state:**
+- README says "API layer deferred"
+- FastAPI and uvicorn in dependencies
+- No actual API code exists
+- Ambiguous direction: library/CLI vs API
+
+**Why this matters:**
+- Unused dependencies add confusion
+- Need clear direction for consumers
+- Either commit to API or remove deps
+
+### Scope (In)
+
+**Option A: Remove API dependencies (recommended for v1):**
+- Remove FastAPI, uvicorn from `pyproject.toml`
+- Update README: "This is a library/CLI tool"
+- Document: "API layer is deferred to v2"
+- Focus on CLI as primary interface
+
+**Option B: Add minimal API wrapper:**
+- Create `src/redis_agent_control_plane/api/`:
+  - `main.py` - FastAPI app
+  - `routes.py` - API routes
+- Add routes:
+  - `GET /healthz` - Health check
+  - `POST /plan` - Generate context pack
+  - `GET /runbooks` - List runbooks
+  - `GET /runbooks/{id}` - Get runbook
+- Add `Dockerfile` for containerization
+- Update README with API documentation
+
+**Decision criteria:**
+- If no immediate API consumers → Option A
+- If external systems need API → Option B
+
+### Scope (Out)
+
+- Full REST API with CRUD operations (future)
+- Authentication/authorization (future)
+- Rate limiting (future)
+- API versioning (future)
+
+### Files to Create (Option B only)
+
+- `src/redis_agent_control_plane/api/` - API module
+- `Dockerfile` - Container image
+- `docker-compose.yml` - Local development
+
+### Files to Modify
+
+- `pyproject.toml` - Remove or keep API dependencies
+- `README.md` - Clarify direction
+
+### Acceptance Criteria (Definition of Done)
+
+**Option A:**
+- [ ] FastAPI and uvicorn removed from dependencies
+- [ ] README updated: "Library/CLI tool, API deferred to v2"
+- [ ] All tests still pass (no API tests to remove)
+
+**Option B:**
+- [ ] FastAPI app created with 4 routes
+- [ ] `GET /healthz` returns 200
+- [ ] `POST /plan` generates context pack
+- [ ] `Dockerfile` builds successfully
+- [ ] 5 new tests pass (API routes)
+- [ ] README updated with API documentation
+
+### Suggested Commit Message
+
+**Option A:**
+```
+refactor: remove API dependencies, clarify as library/CLI tool
+
+- Remove FastAPI and uvicorn from dependencies
+- Update README: API layer deferred to v2
+- Focus on CLI as primary interface
+
+Implements [V1-006] Phase 3B: API Clarity Decision (Option A)
+```
+
+**Option B:**
+```
+feat(api): add minimal FastAPI wrapper
+
+- Add FastAPI app with 4 routes
+- Add GET /healthz, POST /plan, GET /runbooks
+- Add Dockerfile for containerization
+- Add 5 tests for API routes
+
+Implements [V1-006] Phase 3B: API Clarity Decision (Option B)
+```
+
+---
+
+# V1 Completion Checklist
+
+When all V1 tasks are complete, the repo is "done" (v1) when:
+
+- [V1-001] ✅ Adding a new runbook = config change (not code change)
+- [V1-002] ✅ DeploymentSpec → context_pack.json is stable + versioned
+- [V1-003] ✅ Runbooks/steps are validated + CI prevents drift
+- [V1-004] ✅ Golden path CLI is usable and demo-able
+- [V1-005] ✅ CI guardrails prevent quality regression
+- [V1-006] ✅ API direction is clear (library/CLI or API)
+
+**Final milestone:** Update README with "v1.0.0 Production Ready" badge and release notes.
+

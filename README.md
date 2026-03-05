@@ -314,10 +314,23 @@ PYTHONPATH=src pytest tests/test_router.py -v
 - **Phase F** - Context Pack Builder (RAG integration with orchestration)
 - **RAG Pipeline (Phase 3)** - Production-ready RAG with hybrid search
 
-### 🔮 Future Phases (Deferred)
+### 🚀 V1 Completion Tasks (In Progress)
+
+**Goal:** Transform from "phases complete" to "v1 production-ready"
+
+- **Phase 1A** - Data-driven routing registry (prevent if/else monster)
+- **Phase 1B** - Versioned context pack schema (formal contract)
+- **Phase 2A** - Reusable step library (prevent copy-paste hell)
+- **Phase 2B** - Golden path CLI (make it usable)
+- **Phase 3A** - CI anti-rot guardrails (prevent drift)
+- **Phase 3B** - API clarity decision (library/CLI or API)
+
+📄 **See:** `TASKS.md` for detailed task definitions
+
+### 🔮 Future Phases (Post-V1)
 
 - **Agent Layer** - Execution engine for runbooks (external consumer)
-- **API Layer** - REST/gRPC endpoints for external interaction
+- **Advanced Features** - Step versioning, conditional steps, rollback automation
 
 ## Contributing
 

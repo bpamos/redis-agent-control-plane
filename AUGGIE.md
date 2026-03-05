@@ -296,7 +296,23 @@ If Auggie is:
 **Phases A-F Complete:** 2026-03-05
 - Phase F: Context Pack Builder with RAG integration
 - 62 passing tests, 11 skipped (integration tests)
+- All orchestration phases complete
 📄 See `notes/DETERMINISTIC_BRANCH_SUMMARY.md` for full history
+
+# Next Work: V1 Completion Tasks
+
+**Status:** Ready to start (Phases A-F complete)
+**Goal:** Transform from "phases complete" to "v1 production-ready"
+
+**Planned tasks (see TASKS.md):**
+- [V1-001] Data-driven routing registry
+- [V1-002] Versioned context pack schema
+- [V1-003] Reusable step library
+- [V1-004] Golden path CLI
+- [V1-005] CI anti-rot guardrails
+- [V1-006] API clarity decision
+
+**To start:** Set ACTIVE_TASK in TASKS.md to V1-001
 
 ---
 

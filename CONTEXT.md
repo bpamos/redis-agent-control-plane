@@ -503,6 +503,30 @@ python3 scripts/test_retrieval_quality.py
 `notes/PHASE_D_COMPLETE.md`, `notes/PHASE_E_COMPLETE.md`,
 `notes/PHASE_F_COMPLETE.md` (to be created)
 
+---
+
+## V1 Completion Tasks (Next Phase)
+
+**Status:** TODO (Phases A-F complete, ready for V1 tasks)
+
+**Goal:** Transform from "phases complete" to "v1 production-ready"
+
+**What we need to build:**
+1. **Data-driven routing** - Move routing rules to `runbooks/_registry.yaml`
+2. **Versioned schema** - Add plan_version, spec_version to ContextPack
+3. **Reusable steps** - Extract common steps to `steps/` directory
+4. **Golden path CLI** - Add plan/explain/search commands
+5. **CI guardrails** - Add GitHub Actions for validation
+6. **API clarity** - Decide: library/CLI or add FastAPI wrapper
+
+**Why this matters:**
+- Prevent "if/else monster" as we scale to 30+ runbooks
+- Prevent "copy-paste hell" with reusable steps
+- Formalize contract for external consumers
+- Make the repo usable as a standalone tool
+
+📄 **See:** `TASKS.md` for detailed task definitions (V1-001 through V1-006)
+
 ## Development Workflow
 
 1. Check AUGGIE.md for how to work with AI assistance
