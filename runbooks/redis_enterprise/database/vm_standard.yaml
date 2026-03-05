@@ -1,0 +1,157 @@
+runbook:
+  id: runbook.redis_enterprise.database.vm_standard
+  name: "Redis Enterprise Database on VM - Standard"
+  description: "Create a standard Redis database on an existing Redis Enterprise VM cluster. Supports both single-node (simple) and multi-node (HA) deployments."
+  version: "2.0.0"
+  redis_version: "8.0.x"
+  validated: true
+  validation_date: "2026-03-05"
+
+  prerequisites:
+    - check: cluster_deployed
+      command: "ssh $CLUSTER_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin status' | grep -q 'cluster ok'"
+      error_message: "Redis Enterprise cluster is not deployed or not healthy. Deploy cluster first using clustered_3node.yaml or single_node.yaml"
+
+    - check: cluster_has_capacity
+      command: "ssh $CLUSTER_NODE1_HOST 'sudo /opt/redislabs/bin/rladmin status' | grep -q 'available'"
+      error_message: "Cluster does not have available capacity for new database"
+
+    - check: rladmin_available
+      command: "ssh $CLUSTER_NODE1_HOST 'which /opt/redislabs/bin/rladmin'"
+      error_message: "rladmin command not found. Ensure Redis Enterprise is installed."
+
+  steps:
+    - id: step_1
+      name: "Create database via Cluster Manager UI or REST API"
+      description: "Create a standard Redis database with specified memory and configuration"
+      doc_refs:
+        - path: "operate/rs/databases/create.md"
+          section: "Create database with additional configuration"
+      rag_assist:
+        query: "How do I create a Redis database on Redis Enterprise using the UI or REST API?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: curl
+      command: |
+        curl -k -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
+          -H "Content-Type: application/json" \
+          -X POST https://$CLUSTER_NODE1_HOST:9443/v1/bdbs \
+          -d '{
+            "name": "'$DB_NAME'",
+            "type": "redis",
+            "memory_size": 1073741824,
+            "port": '$DB_PORT',
+            "replication": '$REPLICATION_ENABLED',
+            "sharding": false,
+            "shards_count": 1,
+            "proxy_policy": "all-master-shards",
+            "oss_cluster": false
+          }'
+      validation:
+        command: "curl -k -s -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | grep -q '$DB_NAME'"
+        expect: "$DB_NAME"
+        retry: 10
+        retry_delay: 3
+
+    - id: step_2
+      name: "Wait for database to become active"
+      description: "Wait for the database to be fully provisioned and active"
+      doc_refs:
+        - path: "operate/rs/databases/create.md"
+          section: "Test client connectivity"
+      rag_assist:
+        query: "How do I verify a Redis database is active and ready?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: curl
+      command: |
+        for i in {1..30}; do
+          STATUS=$(curl -k -s -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
+            https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | \
+            jq -r '.[] | select(.name=="'$DB_NAME'") | .status')
+          if [ "$STATUS" = "active" ]; then
+            echo "Database is active"
+            exit 0
+          fi
+          echo "Waiting for database to become active... (attempt $i/30)"
+          sleep 5
+        done
+        exit 1
+      validation:
+        command: "curl -k -s -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | jq -r '.[] | select(.name==\"$DB_NAME\") | .status' | grep -q 'active'"
+        expect: "active"
+        retry: 30
+        retry_delay: 5
+
+    - id: step_3
+      name: "Get database endpoint information"
+      description: "Retrieve the database endpoint (host and port) for client connections"
+      doc_refs:
+        - path: "operate/rs/databases/create.md"
+          section: "Test client connectivity"
+      rag_assist:
+        query: "How do I get the endpoint information for a Redis database?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: curl
+      command: |
+        curl -k -s -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
+          https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | \
+          jq -r '.[] | select(.name=="'$DB_NAME'") | "Endpoint: \(.endpoints[0].addr[0]):\(.endpoints[0].port)"'
+      validation:
+        command: "curl -k -s -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | jq -r '.[] | select(.name==\"$DB_NAME\") | .endpoints[0].port' | grep -q '[0-9]'"
+        expect: "[0-9]"
+
+    - id: step_4
+      name: "Test database connectivity"
+      description: "Verify the database is accessible by performing a simple PING command"
+      doc_refs:
+        - path: "operate/rs/databases/connect/test-client-connectivity.md"
+          section: "Test connection"
+      rag_assist:
+        query: "How do I test connectivity to a Redis database?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: redis-cli
+      command: "redis-cli -h $CLUSTER_NODE1_HOST -p $DB_PORT PING"
+      validation:
+        command: "redis-cli -h $CLUSTER_NODE1_HOST -p $DB_PORT PING | grep -q 'PONG'"
+        expect: "PONG"
+        retry: 5
+        retry_delay: 2
+
+  post_validations:
+    - check: database_exists
+      command: "curl -k -s -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | grep -q '$DB_NAME'"
+      expect: "$DB_NAME"
+
+    - check: database_active
+      command: "curl -k -s -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | jq -r '.[] | select(.name==\"$DB_NAME\") | .status' | grep -q 'active'"
+      expect: "active"
+
+    - check: database_accessible
+      command: "redis-cli -h $CLUSTER_NODE1_HOST -p $DB_PORT PING | grep -q 'PONG'"
+      expect: "PONG"
+
+  rollback:
+    - command: "curl -k -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' -X DELETE https://$CLUSTER_NODE1_HOST:9443/v1/bdbs/$(curl -k -s -u '$ADMIN_USERNAME:$ADMIN_PASSWORD' https://$CLUSTER_NODE1_HOST:9443/v1/bdbs | jq -r '.[] | select(.name==\"$DB_NAME\") | .uid')"
+
+  notes:
+    - "This runbook creates a standard Redis database on an existing Redis Enterprise VM cluster"
+    - "Database specifications: 1GB memory, 1 master shard, no sharding"
+    - "For single-node clusters: Set REPLICATION_ENABLED=false (HA not available)"
+    - "For 3-node clusters: Set REPLICATION_ENABLED=true (HA enabled with replica)"
+    - "Prerequisites: Cluster must be deployed using clustered_3node.yaml or single_node.yaml"
+    - "Environment variables required: CLUSTER_NODE1_HOST, ADMIN_USERNAME, ADMIN_PASSWORD, DB_NAME, DB_PORT, REPLICATION_ENABLED"
+    - "Default DB_PORT can be auto-assigned by the cluster if not specified"
+    - "After creation, use the endpoint information to connect your application"
+    - "The database uses the 'all-master-shards' proxy policy for optimal performance"
+

@@ -219,138 +219,136 @@ If Auggie is:
 
 ---
 
-# Branch Task: rag-redis-docs-ingestion
+# Branch Task: deterministic-runbook-layer
 
-## Current Phase: Phase 2.5 - Full Corpus Scale Test with Redis Cloud
+## Current Phase: [ORCH-003] Kubernetes Cluster & Active-Active Preparation
 
-**Phase 1 (Analysis/Design) - COMPLETE ✅**
-- Analyzed reference repos and Redis docs corpus structure
-- Created `notes/rag_reference_findings.md` (723 lines)
-- Updated TASKS.md with RAG EPIC
-- Updated CONTEXT.md with RAG scope/constraints
-- **Key Decision**: Adaptive H2/H3 chunking strategy based on actual docs analysis
-
-**Phase 2 (Baseline Pipeline) - COMPLETE ✅**
-- **Completed:** 2026-03-04
-- **Commit:** 10c2384
-- **Status:** All acceptance criteria met, all tests passing
+**Phase A (Deterministic Routing + Runbook Registry) - ✅ COMPLETE (2026-03-05)**
+- **Task**: [ORCH-001] Phase A: Deterministic Routing + Runbook Registry
+- **Status**: ✅ ALL OBJECTIVES MET - FOUNDATION COMPLETE
 
 **What Was Built:**
-- ✅ Chunker with adaptive H2/H3 strategy (450 lines)
-- ✅ Embedder with sentence-transformers and caching (150 lines)
-- ✅ Indexer with Redis 8.4+ native vector search (170 lines)
-- ✅ Retriever with filter-first pattern (180 lines)
-- ✅ End-to-end pipeline script (140 lines)
-- ✅ Test suite: 26 passing, 10 skipped (integration)
-- ✅ Documentation: RAG_PIPELINE.md, TESTING.md, PHASE_2_COMPLETE.md
+- ✅ DeploymentSpec dataclass with validation (141 lines)
+- ✅ Runbook dataclass with YAML loader (175 lines)
+- ✅ RunbookRouter with deterministic routing (159 lines)
+- ✅ 5 sample runbook YAMLs (structural examples only)
+- ✅ Unit tests: 11 new tests, all passing
+- ✅ 100% deterministic routing validated (100 iterations)
 
-**Key Achievements:**
-- 🎯 **Redis 8.4+ native support** - No modules required!
-- 💰 **Free embeddings** - Local model, no API costs
-- ✅ **Production quality** - All quality checks pass
-- 🧪 **Fully tested** - End-to-end validation complete
-
-**Test the Pipeline:**
-```bash
-# Install dependencies
-make install
-
-# Run end-to-end test
-python3 scripts/test_rag_pipeline.py
-
-# Test with 10 real docs
-python3 scripts/build_rag_index.py --source ../docs/content/operate --limit 10 --overwrite
-
-# Build full index (4,207 docs) - TESTED AT SCALE ✅
-python3 scripts/build_rag_index.py --source ../docs/content --overwrite
-
-# Test retrieval quality
-python3 scripts/test_retrieval_quality.py
-```
-
-**Phase 2.5 (Scale Test) - ✅ COMPLETE (2026-03-04)**
-- **Task**: [RAG-004.5] Full Corpus Test with Redis Cloud
+**Phase B (Validated Runbooks - VM Deployments) - ✅ COMPLETE (2026-03-05)**
+- **Task**: [ORCH-002] Validated Runbooks for Redis Enterprise
 - **Status**: ✅ ALL OBJECTIVES MET - PRODUCTION READY
-- **Results**: 4,207 docs, 20,249 chunks, 4 minutes, all tests passing
-- **Documentation**: `notes/PHASE_2_5_SCALE_TEST.md`
+
+**What Was Built:**
+- ✅ Single-node VM runbook (v2.0.0, 5 doc_refs validated)
+- ✅ 3-node VM cluster runbook (v2.0.0, 7 doc_refs validated)
+- ✅ Validation script (`scripts/validate_runbooks.py`)
+- ✅ Documentation research and validation methodology
+- ✅ All commands extracted from Redis Software 8.0.x documentation
 
 **Key Achievements:**
-- ✅ **4,207 documents** processed (99.4% of corpus)
-- ✅ **20,249 chunks** created (within target range)
-- ✅ **237 seconds** processing time (4x faster than target)
-- ✅ **~200-300MB** index size (well under 1GB limit)
-- ✅ **All test queries** returned relevant results
-- ✅ **63.8% cache hit rate** for embeddings
+- 🎯 **100% documentation-based** - All commands from actual Redis docs
+- ✅ **All doc_refs validated** - 12 total doc_refs, all point to real files
+- ✅ **Version-specific** - Target Redis Software 8.0.x explicitly
+- ✅ **Production ready** - Runbooks ready for real deployments
 
-## What's Next: Choose Your Path
+## Current Status: All Orchestration Phases Complete! ✅
 
-### Option 1: Phase 3 - Advanced Features (Recommended)
-**Task**: [RAG-005] Phase 3: Specialize Chunking/Filters + Hybrid Search
+**Phase C (Kubernetes Cluster & Active-Active Preparation) - ✅ COMPLETE (2026-03-05)**
+- **Task**: [ORCH-003] Phase C: Kubernetes Cluster & Active-Active Preparation
+- **Status**: ✅ ALL OBJECTIVES MET
 
-**Kick off with this prompt:**
+**What Was Built:**
+- ✅ Kubernetes 3-node cluster runbook (v2.0.0, 6 steps)
+- ✅ VM Active-Active preparation runbook (v2.0.0, 9 steps)
+- ✅ Kubernetes Active-Active preparation runbook (v2.0.0, 9 steps)
+- ✅ Updated validation script for Kubernetes runbooks
+- ✅ All doc_refs validated, all commands from actual documentation
+
+**Phase D (Database Deployment Runbooks) - ✅ COMPLETE (2026-03-05)**
+- **Task**: [ORCH-004] Phase D: Database Deployment Runbooks
+- **Status**: ✅ ALL OBJECTIVES MET
+
+**What Was Built:**
+- ✅ VM standard database runbook (v2.0.0, 4 steps)
+- ✅ VM CRDB (Active-Active) runbook (v2.0.0, 5 steps)
+- ✅ Kubernetes REDB runbook (v2.0.0, 4 steps)
+- ✅ Kubernetes REAADB (Active-Active) runbook (v2.0.0, 6 steps)
+- ✅ Updated validation script for database runbooks
+- ✅ All doc_refs validated, all commands from actual documentation
+
+**Phase E (Harness/Tests for Routing and Validation) - ✅ COMPLETE (2026-03-05)**
+- **Task**: [ORCH-005] Phase E: Harness/Tests for Routing and Validation
+- **Status**: ✅ ALL OBJECTIVES MET
+
+**What Was Built:**
+- ✅ Interactive routing test CLI (`scripts/test_routing.py`)
+- ✅ 100% deterministic routing validated (100 iterations)
+- ✅ All 10 runbooks pass validation
+- ✅ 53 tests pass, 11 skipped
+- ✅ Complete harness framework operational
+
+---
+
+## Complete Runbook Inventory (10 Total) ✅
+
+**Infrastructure (1):**
+1. ✅ `redis_cloud/aws/vpc_peering.yaml` - Redis Cloud VPC peering on AWS
+
+**Cluster Deployments (3):**
+2. ✅ `vm/single_node.yaml` - Single-node VM (dev/test)
+3. ✅ `vm/clustered_3node.yaml` - 3-node VM cluster (reusable for multi-region)
+4. ✅ `kubernetes/clustered.yaml` - 3-node K8s cluster (reusable for multi-region)
+
+**Active-Active Preparation (2):**
+5. ✅ `vm/active_active_prepare.yaml` - Configure 2 VM clusters for Active-Active
+6. ✅ `kubernetes/active_active.yaml` - Configure 2 K8s clusters for Active-Active
+
+**Database Deployments (4):**
+7. ✅ `database/vm_standard.yaml` - Standard VM database (simple + HA)
+8. ✅ `database/vm_crdb.yaml` - Active-Active CRDB (requires #5)
+9. ✅ `database/kubernetes_redb.yaml` - Standard K8s database
+10. ✅ `database/kubernetes_reaadb.yaml` - Active-Active K8s database (requires #6)
+
+**Status:** 10/10 complete (100%) 🎉
+
+---
+
+## Next Phase: [ORCH-006] Context Pack Builder (Deferred)
+
+**Objective:** Integrate RAG as bounded enrichment using existing RedisRetriever.
+
+**Status:** Deferred - Low priority
+
+**Note:** All high-priority orchestration phases (A-E) are complete. The deterministic runbook layer is production-ready with 10 validated runbooks covering the full deployment lifecycle.
+
+---
+
+# Previous Work: RAG Pipeline (COMPLETE ✅)
+
+**Phase 1-3 (RAG Pipeline) - ✅ COMPLETE (2026-03-04)**
+- ✅ Production-ready RAG pipeline with 20,249 chunks indexed
+- ✅ Hybrid search (vector + BM25) with FT.CREATE index
+- ✅ 4,207 documents processed from Redis docs corpus
+- ✅ <100ms query latency with HNSW algorithm
+- ✅ All quality checks pass, fully tested
+
+**Test the RAG Pipeline:**
+```bash
+# Query for Redis Enterprise installation docs
+PYTHONPATH=src venv/bin/python -c "
+from redis_agent_control_plane.rag.retriever import RedisRetriever
+retriever = RedisRetriever()
+results = retriever.search(
+    query='How do I install Redis Enterprise on a Linux VM?',
+    product_area='redis_software',
+    category='operate',
+    top_k=10
+)
+for r in results:
+    print(f'{r[\"doc_path\"]}: {r[\"section_heading\"]}')
+"
 ```
-Execute Phase 3 from TASKS.md: [RAG-005] Phase 3: Specialize Chunking/Filters + Hybrid Search
-
-Based on Phase 2.5 findings, enhance the RAG pipeline with:
-1. Specialized chunking for Redis documentation structure
-2. Advanced metadata filtering
-3. Hybrid search (vector + keyword)
-4. Optimized vector search with FT.CREATE index
-
-Review notes/PHASE_2_5_SCALE_TEST.md for context and findings.
-```
-
-**What Auggie will do:**
-1. Review Phase 2.5 findings and identify optimization opportunities
-2. Design specialized chunking strategy for Redis docs
-3. Implement hybrid search (vector + keyword/exact match)
-4. Add FT.CREATE index for optimized vector search
-5. Enhance metadata filtering capabilities
-6. Test and validate improvements
-7. Document Phase 3 completion
-
-**Expected Duration:** 2-3 hours
-
-### Option 2: Agent Integration
-**Integrate RAG with agent control plane**
-
-**Kick off with this prompt:**
-```
-Integrate the RAG pipeline with the agent control plane:
-1. Add FastAPI endpoints for RAG search
-2. Connect retriever to agent decision-making
-3. Add context injection for agent prompts
-4. Test end-to-end agent + RAG workflow
-```
-
-**What Auggie will do:**
-1. Create FastAPI endpoints for RAG search
-2. Add RAG context to agent prompts
-3. Implement agent-RAG integration
-4. Test complete workflow
-5. Document integration
-
-**Expected Duration:** 1-2 hours
-
-### Option 3: Production Optimization
-**Optimize for production deployment**
-
-**Kick off with this prompt:**
-```
-Optimize RAG pipeline for production:
-1. Add FT.CREATE index for faster vector search
-2. Implement monitoring and metrics
-3. Add API authentication
-4. Create deployment documentation
-```
-
-**What Auggie will do:**
-1. Create proper Redis vector index
-2. Add performance monitoring
-3. Implement security features
-4. Document deployment process
-
-**Expected Duration:** 1-2 hours
 
 ---
 

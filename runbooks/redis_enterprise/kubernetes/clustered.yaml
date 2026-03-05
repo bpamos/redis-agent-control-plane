@@ -1,0 +1,199 @@
+runbook:
+  id: runbook.redis_enterprise.kubernetes.clustered
+  name: "Redis Enterprise on Kubernetes - 3-Node Cluster"
+  description: "Deploy a 3-node Redis Enterprise Cluster (REC) on Kubernetes using the Redis Enterprise Operator. Includes operator installation and cluster deployment."
+  version: "2.0.0"
+  redis_version: "8.0.x"
+  validated: true
+  validation_date: "2026-03-05"
+
+  prerequisites:
+    - check: kubectl_installed
+      command: "kubectl version --client"
+      error_message: "kubectl is not installed. Install kubectl to manage Kubernetes clusters."
+
+    - check: kubernetes_cluster_accessible
+      command: "kubectl cluster-info"
+      error_message: "Cannot access Kubernetes cluster. Ensure kubeconfig is configured and cluster is running."
+
+    - check: kubernetes_version
+      command: "kubectl version --short | grep 'Server Version' | grep -E 'v1\\.(2[4-9]|[3-9][0-9])'"
+      error_message: "Kubernetes version must be 1.24 or higher for Redis Enterprise Operator."
+
+    - check: namespace_exists
+      command: "kubectl get namespace $NAMESPACE"
+      error_message: "Namespace $NAMESPACE does not exist. Create it with: kubectl create namespace $NAMESPACE"
+
+  steps:
+    - id: step_1
+      name: "Install Redis Enterprise Operator"
+      description: "Deploy the Redis Enterprise Operator using the official bundle YAML"
+      doc_refs:
+        - path: "operate/kubernetes/deployment/quick-start.md"
+          section: "Install the operator"
+      rag_assist:
+        query: "How do I install the Redis Enterprise Operator on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: kubectl
+      command: "kubectl apply -f https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/master/bundle.yaml"
+      validation:
+        command: "kubectl get deployment redis-enterprise-operator -n $NAMESPACE"
+        expect: "redis-enterprise-operator"
+        retry: 10
+        retry_delay: 5
+
+    - id: step_2
+      name: "Wait for operator to be ready"
+      description: "Wait for the Redis Enterprise Operator deployment to be ready"
+      doc_refs:
+        - path: "operate/kubernetes/deployment/quick-start.md"
+          section: "Verify the operator is running"
+      rag_assist:
+        query: "How do I verify the Redis Enterprise Operator is running?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: "kubectl wait --for=condition=available --timeout=300s deployment/redis-enterprise-operator -n $NAMESPACE"
+      validation:
+        command: "kubectl get pods -n $NAMESPACE -l name=redis-enterprise-operator | grep -q 'Running'"
+        expect: "Running"
+        retry: 15
+        retry_delay: 5
+
+    - id: step_3
+      name: "Create Redis Enterprise Cluster (REC) manifest"
+      description: "Create a 3-node Redis Enterprise Cluster custom resource"
+      doc_refs:
+        - path: "operate/kubernetes/deployment/quick-start.md"
+          section: "Create a Redis Enterprise cluster"
+      rag_assist:
+        query: "How do I create a Redis Enterprise Cluster on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 5
+      tool: kubectl
+      command: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: app.redislabs.com/v1
+        kind: RedisEnterpriseCluster
+        metadata:
+          name: $CLUSTER_NAME
+          namespace: $NAMESPACE
+        spec:
+          nodes: 3
+          persistentSpec:
+            enabled: true
+            storageClassName: $STORAGE_CLASS
+            volumeSize: 50Gi
+          redisEnterpriseNodeResources:
+            limits:
+              cpu: "4"
+              memory: 16Gi
+            requests:
+              cpu: "2"
+              memory: 8Gi
+          uiServiceType: LoadBalancer
+          username: $ADMIN_USERNAME
+          redisEnterpriseImageSpec:
+            imagePullPolicy: IfNotPresent
+        EOF
+      validation:
+        command: "kubectl get rec $CLUSTER_NAME -n $NAMESPACE"
+        expect: "$CLUSTER_NAME"
+        retry: 5
+        retry_delay: 3
+
+    - id: step_4
+      name: "Wait for cluster to be ready"
+      description: "Wait for all 3 nodes to join the cluster and become ready"
+      doc_refs:
+        - path: "operate/kubernetes/deployment/quick-start.md"
+          section: "Verify the cluster is running"
+      rag_assist:
+        query: "How do I verify Redis Enterprise Cluster is ready on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: "kubectl wait --for=condition=ready --timeout=900s rec/$CLUSTER_NAME -n $NAMESPACE"
+      validation:
+        command: "kubectl get rec $CLUSTER_NAME -n $NAMESPACE -o jsonpath='{.status.state}' | grep -q 'Running'"
+        expect: "Running"
+        retry: 30
+        retry_delay: 10
+
+    - id: step_5
+      name: "Get cluster admin credentials"
+      description: "Retrieve the admin password from the Kubernetes secret"
+      doc_refs:
+        - path: "operate/kubernetes/deployment/quick-start.md"
+          section: "Access the cluster"
+      rag_assist:
+        query: "How do I get Redis Enterprise admin credentials on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: "kubectl get secret $CLUSTER_NAME -n $NAMESPACE -o jsonpath='{.data.password}' | base64 --decode"
+      validation:
+        command: "kubectl get secret $CLUSTER_NAME -n $NAMESPACE"
+        expect: "$CLUSTER_NAME"
+
+    - id: step_6
+      name: "Verify cluster UI access"
+      description: "Get the LoadBalancer IP/hostname for the Redis Enterprise UI"
+      doc_refs:
+        - path: "operate/kubernetes/deployment/quick-start.md"
+          section: "Access the cluster UI"
+      rag_assist:
+        query: "How do I access the Redis Enterprise UI on Kubernetes?"
+        filters:
+          category: operate
+          product_area: redis_software
+        max_results: 3
+      tool: kubectl
+      command: "kubectl get svc $CLUSTER_NAME-ui -n $NAMESPACE"
+      validation:
+        command: "kubectl get svc $CLUSTER_NAME-ui -n $NAMESPACE -o jsonpath='{.status.loadBalancer}' | grep -q 'ingress'"
+        expect: "ingress"
+        retry: 10
+        retry_delay: 5
+
+  post_validations:
+    - check: operator_running
+      command: "kubectl get pods -n $NAMESPACE -l name=redis-enterprise-operator | grep -q 'Running'"
+      expect: "Running"
+
+    - check: cluster_running
+      command: "kubectl get rec $CLUSTER_NAME -n $NAMESPACE -o jsonpath='{.status.state}' | grep -q 'Running'"
+      expect: "Running"
+
+    - check: all_nodes_ready
+      command: "kubectl get pods -n $NAMESPACE -l app=redis-enterprise | grep -c 'Running' | grep -q '3'"
+      expect: "3"
+
+    - check: ui_service_exists
+      command: "kubectl get svc $CLUSTER_NAME-ui -n $NAMESPACE"
+      expect: "$CLUSTER_NAME-ui"
+
+  rollback:
+    - command: "kubectl delete rec $CLUSTER_NAME -n $NAMESPACE"
+    - command: "kubectl delete -f https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/master/bundle.yaml"
+
+  notes:
+    - "This runbook deploys a 3-node Redis Enterprise Cluster on Kubernetes"
+    - "Prerequisites: Kubernetes cluster must be running and accessible via kubectl"
+    - "The operator manages the lifecycle of the Redis Enterprise Cluster"
+    - "For Active-Active deployments, deploy this runbook twice (once per region/cluster)"
+    - "Environment variables required: NAMESPACE, CLUSTER_NAME, STORAGE_CLASS, ADMIN_USERNAME"
+    - "Default storage class can be used if STORAGE_CLASS is not specified"
+    - "After deployment, use the UI service LoadBalancer IP to access the cluster management interface"
+
