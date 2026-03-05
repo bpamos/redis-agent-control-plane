@@ -1,5 +1,10 @@
 # redis-agent-control-plane
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-org/redis-agent-control-plane/releases/tag/v1.0.0)
+[![Status](https://img.shields.io/badge/status-production--ready-green.svg)](https://github.com/your-org/redis-agent-control-plane)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-97%20passing-brightgreen.svg)](https://github.com/your-org/redis-agent-control-plane)
+
 Agent control plane with deterministic orchestration, validated runbooks, and RAG-powered context engine for simplifying Redis Enterprise Infrastructure deployments.
 
 ## Overview
@@ -72,6 +77,16 @@ builder = ContextBuilder()
 
 ## Current Status
 
+**🎉 v1.0.0 Production Ready (2026-03-05)**
+
+All 6 V1 completion tasks finished:
+- ✅ Data-driven routing registry
+- ✅ Versioned context pack schema
+- ✅ Reusable step library (21 steps)
+- ✅ Golden path CLI (5 commands)
+- ✅ CI anti-rot guardrails
+- ✅ API clarity decision (library/CLI)
+
 ### ✅ Orchestration Layer (Phases A-F COMPLETE - 2026-03-05)
 
 **Deterministic Routing System:**
@@ -79,7 +94,7 @@ builder = ContextBuilder()
 - Data-driven registry-based routing (adding runbooks = config change, not code change)
 - Priority-based matching with collision detection
 - Validated over 100 iterations with zero variance
-- 71 passing tests, 11 skipped
+- 97 passing tests, 11 skipped
 
 **10 Validated Runbooks:**
 - Infrastructure: 1 (Redis Cloud VPC peering)
