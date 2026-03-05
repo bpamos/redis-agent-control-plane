@@ -1,0 +1,146 @@
+# Runbook Routing Registry
+#
+# This registry provides data-driven routing from DeploymentSpec to runbook_id.
+# Adding a new runbook is now a config change, not a code change.
+#
+# Schema:
+#   registry_version: Version of this registry format (semver)
+#   runbooks: List of runbook entries
+#     - id: Unique runbook identifier (must match runbook YAML file)
+#       name: Human-readable name
+#       path: Relative path to runbook YAML file from repo root
+#       selectors: Matching criteria for DeploymentSpec
+#         product: redis_enterprise | redis_cloud | redis_stack
+#         platform: vm | kubernetes | eks | gke | aks | openshift | aws | gcp | azure
+#         topology: single_node | clustered | active_active
+#         cloud_provider: aws | gcp | azure | on_prem (optional)
+#         # Future: Advanced selectors like "scale.nodes: >= 5"
+#       priority: Integer priority (higher = more specific, matched first)
+#       enabled: Boolean flag to enable/disable runbook
+#
+# Routing Algorithm:
+#   1. Load all runbooks from registry
+#   2. Filter by enabled=true
+#   3. Match selectors against DeploymentSpec (all selectors must match)
+#   4. Sort by priority (descending)
+#   5. Return highest priority match
+#   6. Fail loudly if no match or ambiguous match (same priority)
+#
+# Priority Guidelines:
+#   - 100: Standard/default runbooks
+#   - 200: Specialized variants (e.g., HA clusters with >= 5 nodes)
+#   - 300: Highly specific edge cases
+#
+# Collision Detection:
+#   - Same selectors + same priority = ERROR (ambiguous)
+#   - Same selectors + different priority = OK (higher priority wins)
+#
+
+registry_version: "1.0.0"
+
+runbooks:
+  # Redis Enterprise - Kubernetes
+  - id: runbook.redis_enterprise.kubernetes.clustered
+    name: "Redis Enterprise on Kubernetes - 3-Node Cluster"
+    path: "runbooks/redis_enterprise/kubernetes/clustered.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: kubernetes
+      topology: clustered
+    priority: 100
+    enabled: true
+
+  - id: runbook.redis_enterprise.kubernetes.active_active
+    name: "Redis Enterprise on Kubernetes - Active-Active Preparation"
+    path: "runbooks/redis_enterprise/kubernetes/active_active.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: kubernetes
+      topology: active_active
+    priority: 100
+    enabled: true
+
+  # Redis Enterprise - VM
+  - id: runbook.redis_enterprise.vm.single_node
+    name: "Redis Enterprise on VM - Single Node"
+    path: "runbooks/redis_enterprise/vm/single_node.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: vm
+      topology: single_node
+    priority: 100
+    enabled: true
+
+  - id: runbook.redis_enterprise.vm.clustered_3node
+    name: "Redis Enterprise on VM - 3-Node Cluster"
+    path: "runbooks/redis_enterprise/vm/clustered_3node.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: vm
+      topology: clustered
+    priority: 100
+    enabled: true
+
+  - id: runbook.redis_enterprise.vm.active_active_prepare
+    name: "Redis Enterprise on VM - Active-Active Preparation"
+    path: "runbooks/redis_enterprise/vm/active_active_prepare.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: vm
+      topology: active_active
+    priority: 100
+    enabled: true
+
+  # Redis Enterprise - Database (Kubernetes)
+  - id: runbook.redis_enterprise.database.kubernetes_redb
+    name: "Redis Enterprise Database on Kubernetes - REDB"
+    path: "runbooks/redis_enterprise/database/kubernetes_redb.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: kubernetes
+      topology: database
+    priority: 100
+    enabled: true
+
+  - id: runbook.redis_enterprise.database.kubernetes_reaadb
+    name: "Redis Enterprise Database on Kubernetes - Active-Active REAADB"
+    path: "runbooks/redis_enterprise/database/kubernetes_reaadb.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: kubernetes
+      topology: database_active_active
+    priority: 100
+    enabled: true
+
+  # Redis Enterprise - Database (VM)
+  - id: runbook.redis_enterprise.database.vm_standard
+    name: "Redis Enterprise Database on VM - Standard"
+    path: "runbooks/redis_enterprise/database/vm_standard.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: vm
+      topology: database
+    priority: 100
+    enabled: true
+
+  - id: runbook.redis_enterprise.database.vm_crdb
+    name: "Redis Enterprise Database on VM - Active-Active CRDB"
+    path: "runbooks/redis_enterprise/database/vm_crdb.yaml"
+    selectors:
+      product: redis_enterprise
+      platform: vm
+      topology: database_active_active
+    priority: 100
+    enabled: true
+
+  # Redis Cloud - AWS
+  - id: runbook.redis_cloud.aws.vpc_peering
+    name: "Redis Cloud on AWS - VPC Peering"
+    path: "runbooks/redis_cloud/aws/vpc_peering.yaml"
+    selectors:
+      product: redis_cloud
+      platform: aws
+      topology: vpc_peering
+    priority: 100
+    enabled: true
+

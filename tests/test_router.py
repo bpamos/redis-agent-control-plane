@@ -13,7 +13,10 @@ from redis_agent_control_plane.orchestration.deployment_spec import (
     ScaleConfig,
     Topology,
 )
-from redis_agent_control_plane.orchestration.router import RunbookNotFoundError, RunbookRouter
+from redis_agent_control_plane.orchestration.router import (
+    RunbookNotFoundError,
+    RunbookRouter,
+)
 
 
 @pytest.fixture
@@ -162,3 +165,154 @@ def test_router_list_available_runbooks(router):
     assert len(runbooks) > 0
     assert "runbook.redis_enterprise.kubernetes.clustered" in runbooks
     assert all(rb.startswith("runbook.") for rb in runbooks)
+
+
+# ============================================================================
+# Registry-Based Routing Tests
+# ============================================================================
+
+
+@pytest.fixture
+def router_with_registry():
+    """Create a router instance with registry enabled."""
+    return RunbookRouter(use_registry=True)
+
+
+@pytest.fixture
+def router_without_registry():
+    """Create a router instance with registry disabled."""
+    return RunbookRouter(use_registry=False)
+
+
+def test_registry_loading(router_with_registry):
+    """Test that registry is loaded on initialization."""
+    assert router_with_registry._registry is not None
+    assert "registry_version" in router_with_registry._registry
+    assert "runbooks" in router_with_registry._registry
+
+
+def test_registry_route_kubernetes_clustered(router_with_registry):
+    """Test registry-based routing to Kubernetes clustered runbook."""
+    spec = DeploymentSpec(
+        product=Product.REDIS_ENTERPRISE,
+        platform=Platform.KUBERNETES,
+        topology=Topology.CLUSTERED,
+        networking=NetworkingConfig(type=NetworkingType.PRIVATE, tls_enabled=True),
+        scale=ScaleConfig(nodes=3, shards=2, replicas=1),
+    )
+
+    runbook_id = router_with_registry.route(spec)
+    assert runbook_id == "runbook.redis_enterprise.kubernetes.clustered"
+
+
+def test_registry_route_vm_single_node(router_with_registry):
+    """Test registry-based routing to VM single-node runbook."""
+    spec = DeploymentSpec(
+        product=Product.REDIS_ENTERPRISE,
+        platform=Platform.VM,
+        topology=Topology.SINGLE_NODE,
+        networking=NetworkingConfig(type=NetworkingType.PUBLIC, tls_enabled=False),
+        scale=ScaleConfig(nodes=1, shards=1, replicas=0),
+    )
+
+    runbook_id = router_with_registry.route(spec)
+    assert runbook_id == "runbook.redis_enterprise.vm.single_node"
+
+
+def test_registry_route_active_active(router_with_registry):
+    """Test registry-based routing to Active-Active runbook."""
+    spec = DeploymentSpec(
+        product=Product.REDIS_ENTERPRISE,
+        platform=Platform.KUBERNETES,
+        topology=Topology.ACTIVE_ACTIVE,
+        networking=NetworkingConfig(type=NetworkingType.PRIVATE, tls_enabled=True),
+        scale=ScaleConfig(nodes=2, shards=2, replicas=1),
+    )
+
+    runbook_id = router_with_registry.route(spec)
+    assert runbook_id == "runbook.redis_enterprise.kubernetes.active_active"
+
+
+def test_registry_route_not_found(router_with_registry):
+    """Test error handling when no registry entry matches."""
+    spec = DeploymentSpec(
+        product=Product.REDIS_STACK,
+        platform=Platform.KUBERNETES,
+        topology=Topology.CLUSTERED,
+        networking=NetworkingConfig(type=NetworkingType.PRIVATE, tls_enabled=True),
+        scale=ScaleConfig(nodes=3, shards=2, replicas=1),
+    )
+
+    with pytest.raises(RunbookNotFoundError, match="No runbook found"):
+        router_with_registry.route(spec)
+
+
+def test_registry_determinism(router_with_registry):
+    """Test that registry-based routing is deterministic."""
+    spec = DeploymentSpec(
+        product=Product.REDIS_ENTERPRISE,
+        platform=Platform.KUBERNETES,
+        topology=Topology.CLUSTERED,
+        networking=NetworkingConfig(type=NetworkingType.PRIVATE, tls_enabled=True),
+        scale=ScaleConfig(nodes=3, shards=2, replicas=1),
+    )
+
+    # Route 100 times and collect results
+    results = [router_with_registry.route(spec) for _ in range(100)]
+
+    # All results should be identical
+    assert len(set(results)) == 1
+    assert results[0] == "runbook.redis_enterprise.kubernetes.clustered"
+
+
+def test_registry_list_available_runbooks(router_with_registry):
+    """Test listing runbooks from registry."""
+    runbooks = router_with_registry.list_available_runbooks()
+
+    assert isinstance(runbooks, list)
+    assert len(runbooks) == 10  # We have 10 runbooks in registry
+    assert "runbook.redis_enterprise.kubernetes.clustered" in runbooks
+    assert "runbook.redis_enterprise.vm.single_node" in runbooks
+
+
+def test_backward_compatibility_without_registry(router_without_registry):
+    """Test that routing still works without registry (backward compatibility)."""
+    spec = DeploymentSpec(
+        product=Product.REDIS_ENTERPRISE,
+        platform=Platform.KUBERNETES,
+        topology=Topology.CLUSTERED,
+        networking=NetworkingConfig(type=NetworkingType.PRIVATE, tls_enabled=True),
+        scale=ScaleConfig(nodes=3, shards=2, replicas=1),
+    )
+
+    runbook_id = router_without_registry.route(spec)
+    assert runbook_id == "runbook.redis_enterprise.kubernetes.clustered"
+
+
+def test_registry_matches_selectors():
+    """Test selector matching logic."""
+    router = RunbookRouter(use_registry=True)
+
+    spec = DeploymentSpec(
+        product=Product.REDIS_ENTERPRISE,
+        platform=Platform.KUBERNETES,
+        topology=Topology.CLUSTERED,
+        networking=NetworkingConfig(type=NetworkingType.PRIVATE, tls_enabled=True),
+        scale=ScaleConfig(nodes=3, shards=2, replicas=1),
+    )
+
+    # Test matching selectors
+    selectors = {
+        "product": "redis_enterprise",
+        "platform": "kubernetes",
+        "topology": "clustered",
+    }
+    assert router._matches_selectors(spec, selectors) is True
+
+    # Test non-matching selectors
+    selectors_wrong = {
+        "product": "redis_cloud",
+        "platform": "kubernetes",
+        "topology": "clustered",
+    }
+    assert router._matches_selectors(spec, selectors_wrong) is False
