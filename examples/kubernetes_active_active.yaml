@@ -1,0 +1,22 @@
+# Example: Redis Enterprise on Kubernetes (Active-Active)
+#
+# This deployment spec will route to:
+#   runbook.redis_enterprise.kubernetes.active_active
+#
+# Usage:
+#   redis-agent-control-plane plan --spec examples/kubernetes_active_active.yaml
+
+deployment_spec:
+  product: redis_enterprise
+  platform: kubernetes
+  topology: active_active
+  
+  # Optional: Additional configuration
+  # cloud_provider: aws
+  # region: us-east-1
+  # networking:
+  #   vpc_cidr: "10.0.0.0/16"
+  # scale:
+  #   clusters: 2
+  #   nodes_per_cluster: 3
+

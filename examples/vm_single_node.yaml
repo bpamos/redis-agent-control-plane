@@ -1,0 +1,19 @@
+# Example: Redis Enterprise on VM (Single Node)
+#
+# This deployment spec will route to:
+#   runbook.redis_enterprise.vm.single_node
+#
+# Usage:
+#   redis-agent-control-plane plan --spec examples/vm_single_node.yaml
+
+deployment_spec:
+  product: redis_enterprise
+  platform: vm
+  topology: single_node
+  
+  # Optional: Additional configuration
+  # cloud_provider: aws
+  # region: us-west-2
+  # networking:
+  #   vpc_cidr: "172.16.0.0/16"
+

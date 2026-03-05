@@ -1,0 +1,22 @@
+# Example: Redis Enterprise on Kubernetes (Clustered)
+#
+# This deployment spec will route to:
+#   runbook.redis_enterprise.kubernetes.clustered
+#
+# Usage:
+#   redis-agent-control-plane plan --spec examples/kubernetes_clustered.yaml
+
+deployment_spec:
+  product: redis_enterprise
+  platform: kubernetes
+  topology: clustered
+  
+  # Optional: Additional configuration
+  # cloud_provider: aws
+  # region: us-east-1
+  # networking:
+  #   vpc_cidr: "10.0.0.0/16"
+  # scale:
+  #   nodes: 3
+  #   memory_per_node: "16Gi"
+
