@@ -367,3 +367,159 @@ def test_step_without_rag_assist(sample_runbook, sample_deployment_spec, mock_re
 
     # Verify retriever was not called
     mock_retriever.search.assert_not_called()
+
+
+def test_context_pack_serialization(
+    sample_runbook, sample_runbook_step, sample_deployment_spec, mock_retriever
+):
+    """Test ContextPack serialization to dict and JSON."""
+    builder = ContextBuilder(retriever=mock_retriever)
+
+    # Build context pack
+    context_pack = builder.build_context_pack(
+        runbook=sample_runbook,
+        step=sample_runbook_step,
+        deployment_spec=sample_deployment_spec,
+        use_rag=True,
+    )
+
+    # Test to_dict()
+    data = context_pack.to_dict()
+    assert isinstance(data, dict)
+    assert data["runbook_id"] == sample_runbook.id
+    assert data["step_id"] == sample_runbook_step.id
+    assert data["plan_version"] == "1.0.0"
+    assert data["spec_version"] == "1.0.0"
+    assert "deployment_spec" in data
+    assert isinstance(data["deployment_spec"], dict)
+    assert isinstance(data["deterministic_doc_refs"], list)
+    assert isinstance(data["rag_chunks"], list)
+
+    # Test to_json()
+    json_str = context_pack.to_json()
+    assert isinstance(json_str, str)
+    assert "runbook_id" in json_str
+    assert "plan_version" in json_str
+
+
+def test_context_pack_deserialization(
+    sample_runbook, sample_runbook_step, sample_deployment_spec, mock_retriever
+):
+    """Test ContextPack deserialization from dict and JSON."""
+    builder = ContextBuilder(retriever=mock_retriever)
+
+    # Build context pack
+    original = builder.build_context_pack(
+        runbook=sample_runbook,
+        step=sample_runbook_step,
+        deployment_spec=sample_deployment_spec,
+        use_rag=True,
+    )
+
+    # Serialize to dict
+    data = original.to_dict()
+
+    # Deserialize from dict
+    from redis_agent_control_plane.orchestration.context_pack import ContextPack
+
+    restored = ContextPack.from_dict(data)
+
+    # Verify fields match
+    assert restored.runbook_id == original.runbook_id
+    assert restored.runbook_version == original.runbook_version
+    assert restored.step_id == original.step_id
+    assert restored.step_name == original.step_name
+    assert restored.plan_version == original.plan_version
+    assert restored.spec_version == original.spec_version
+    assert len(restored.deterministic_doc_refs) == len(original.deterministic_doc_refs)
+    assert len(restored.rag_chunks) == len(original.rag_chunks)
+
+    # Test from_json()
+    json_str = original.to_json()
+    restored_from_json = ContextPack.from_json(json_str)
+    assert restored_from_json.runbook_id == original.runbook_id
+
+
+def test_deployment_spec_serialization(sample_deployment_spec):
+    """Test DeploymentSpec serialization and deserialization."""
+    # Serialize to dict
+    data = sample_deployment_spec.to_dict()
+    assert isinstance(data, dict)
+    assert data["product"] == "redis_enterprise"
+    assert data["platform"] == "kubernetes"
+    assert data["topology"] == "clustered"
+    assert "networking" in data
+    assert "scale" in data
+
+    # Deserialize from dict
+    from redis_agent_control_plane.orchestration.deployment_spec import DeploymentSpec
+
+    restored = DeploymentSpec.from_dict(data)
+    assert restored.product == sample_deployment_spec.product
+    assert restored.platform == sample_deployment_spec.platform
+    assert restored.topology == sample_deployment_spec.topology
+    assert restored.networking.type == sample_deployment_spec.networking.type
+    assert restored.scale.nodes == sample_deployment_spec.scale.nodes
+
+
+def test_rag_chunk_serialization():
+    """Test RAGChunk serialization and deserialization."""
+    from redis_agent_control_plane.orchestration.context_pack import RAGChunk
+
+    # Create a RAGChunk
+    chunk = RAGChunk(
+        content="Test content",
+        doc_path="docs/test.md",
+        doc_url="https://redis.io/docs/test/",
+        title="Test Document",
+        section_heading="Test Section",
+        toc_path="Test > Section",
+        category="operate",
+        product_area="redis_software",
+        chunk_id="redis_docs:chunk:test",
+        chunk_index=0,
+        vector_distance=0.15,
+        rank=1,
+        why_included="semantic_match",
+    )
+
+    # Serialize to dict
+    data = chunk.to_dict()
+    assert isinstance(data, dict)
+    assert data["content"] == "Test content"
+    assert data["category"] == "operate"
+    assert data["chunk_id"] == "redis_docs:chunk:test"
+
+    # Deserialize from dict
+    restored = RAGChunk.from_dict(data)
+    assert restored.content == chunk.content
+    assert restored.category == chunk.category
+    assert restored.chunk_id == chunk.chunk_id
+
+
+def test_context_pack_version_fields(
+    sample_runbook, sample_runbook_step, sample_deployment_spec, mock_retriever
+):
+    """Test that ContextPack has version fields."""
+    builder = ContextBuilder(retriever=mock_retriever)
+
+    # Build context pack
+    context_pack = builder.build_context_pack(
+        runbook=sample_runbook,
+        step=sample_runbook_step,
+        deployment_spec=sample_deployment_spec,
+        use_rag=False,
+    )
+
+    # Verify version fields exist
+    assert hasattr(context_pack, "plan_version")
+    assert hasattr(context_pack, "spec_version")
+    assert context_pack.plan_version == "1.0.0"
+    assert context_pack.spec_version == "1.0.0"
+
+    # Verify version fields are in serialized output
+    data = context_pack.to_dict()
+    assert "plan_version" in data
+    assert "spec_version" in data
+    assert data["plan_version"] == "1.0.0"
+    assert data["spec_version"] == "1.0.0"

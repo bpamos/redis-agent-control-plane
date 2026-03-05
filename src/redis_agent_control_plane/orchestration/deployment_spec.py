@@ -7,6 +7,7 @@ deterministically select the appropriate runbook.
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 
 class Product(StrEnum):
@@ -66,6 +67,26 @@ class NetworkingConfig:
     type: NetworkingType
     tls_enabled: bool = True
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert NetworkingConfig to dictionary.
+
+        Returns:
+            Dictionary representation of the NetworkingConfig.
+        """
+        return {"type": self.type.value, "tls_enabled": self.tls_enabled}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "NetworkingConfig":
+        """Create NetworkingConfig from dictionary.
+
+        Args:
+            data: Dictionary containing NetworkingConfig fields.
+
+        Returns:
+            NetworkingConfig instance.
+        """
+        return cls(type=NetworkingType(data["type"]), tls_enabled=data.get("tls_enabled", True))
+
 
 @dataclass
 class ScaleConfig:
@@ -83,6 +104,30 @@ class ScaleConfig:
             raise ValueError("shards must be >= 1")
         if self.replicas < 0:
             raise ValueError("replicas must be >= 0")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert ScaleConfig to dictionary.
+
+        Returns:
+            Dictionary representation of the ScaleConfig.
+        """
+        return {"nodes": self.nodes, "shards": self.shards, "replicas": self.replicas}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ScaleConfig":
+        """Create ScaleConfig from dictionary.
+
+        Args:
+            data: Dictionary containing ScaleConfig fields.
+
+        Returns:
+            ScaleConfig instance.
+        """
+        return cls(
+            nodes=data.get("nodes", 1),
+            shards=data.get("shards", 1),
+            replicas=data.get("replicas", 1),
+        )
 
 
 @dataclass
@@ -140,3 +185,45 @@ class DeploymentSpec:
             'runbook.redis_enterprise.kubernetes.clustered'
         """
         return f"runbook.{self.product.value}.{self.platform.value}.{self.topology.value}"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert DeploymentSpec to dictionary.
+
+        Returns:
+            Dictionary representation of the DeploymentSpec.
+        """
+        return {
+            "product": self.product.value,
+            "platform": self.platform.value,
+            "topology": self.topology.value,
+            "networking": self.networking.to_dict(),
+            "scale": self.scale.to_dict(),
+            "cloud_provider": self.cloud_provider.value if self.cloud_provider else None,
+            "requirements": self.requirements,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DeploymentSpec":
+        """Create DeploymentSpec from dictionary.
+
+        Args:
+            data: Dictionary containing DeploymentSpec fields.
+
+        Returns:
+            DeploymentSpec instance.
+
+        Raises:
+            ValueError: If required fields are missing or invalid.
+        """
+        cloud_provider = (
+            CloudProvider(data["cloud_provider"]) if data.get("cloud_provider") else None
+        )
+        return cls(
+            product=Product(data["product"]),
+            platform=Platform(data["platform"]),
+            topology=Topology(data["topology"]),
+            networking=NetworkingConfig.from_dict(data["networking"]),
+            scale=ScaleConfig.from_dict(data["scale"]),
+            cloud_provider=cloud_provider,
+            requirements=data.get("requirements", []),
+        )
